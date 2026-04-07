@@ -33,20 +33,20 @@ actor NetworkManager {
     private var authToken: String?
 
     private init() {
-        // Локальный сервер
-        self.baseURL = "http://localhost:3000/api"
+        self.baseURL = Bundle.main.object(forInfoDictionaryKey: "API_BASE_URL") as? String
+            ?? "http://localhost:3000/api"
     }
 
     func setAuthToken(_ token: String?) {
         self.authToken = token
     }
 
-    func request<T: Decodable>(
+    private func buildRequest(
         endpoint: String,
-        method: HTTPMethod = .get,
-        body: Encodable? = nil,
-        queryItems: [URLQueryItem]? = nil
-    ) async throws -> T {
+        method: HTTPMethod,
+        body: Encodable?,
+        queryItems: [URLQueryItem]?
+    ) throws -> URLRequest {
         guard var urlComponents = URLComponents(string: "\(baseURL)\(endpoint)") else {
             throw NetworkError.invalidURL
         }
@@ -73,37 +73,77 @@ actor NetworkManager {
             request.httpBody = try encoder.encode(body)
         }
 
-        do {
-            let (data, response) = try await URLSession.shared.data(for: request)
+        return request
+    }
 
-            guard let httpResponse = response as? HTTPURLResponse else {
-                throw NetworkError.noData
+    private func performRequest(_ request: URLRequest, maxRetries: Int = 2) async throws -> (Data, HTTPURLResponse) {
+        var lastError: Error?
+
+        for attempt in 0...maxRetries {
+            if attempt > 0 {
+                let delay = UInt64(attempt) * 1_000_000_000
+                try? await Task.sleep(nanoseconds: delay)
             }
-
-            if httpResponse.statusCode == 401 {
-                throw NetworkError.unauthorized
-            }
-
-            if httpResponse.statusCode >= 400 {
-                if let errorResponse = try? JSONDecoder().decode(ErrorResponse.self, from: data) {
-                    throw NetworkError.serverError(errorResponse.message)
-                }
-                throw NetworkError.serverError("Ошибка сервера")
-            }
-
-            let decoder = JSONDecoder()
-            decoder.dateDecodingStrategy = .iso8601
 
             do {
-                return try decoder.decode(T.self, from: data)
+                let (data, response) = try await URLSession.shared.data(for: request)
+
+                guard let httpResponse = response as? HTTPURLResponse else {
+                    throw NetworkError.noData
+                }
+
+                // Не повторяем при клиентских ошибках (4xx)
+                if httpResponse.statusCode >= 400 && httpResponse.statusCode < 500 {
+                    return (data, httpResponse)
+                }
+
+                // Повторяем при серверных ошибках (5xx)
+                if httpResponse.statusCode >= 500 && attempt < maxRetries {
+                    lastError = NetworkError.serverError("Ошибка сервера")
+                    continue
+                }
+
+                return (data, httpResponse)
+            } catch let error as NetworkError {
+                throw error
             } catch {
-                print("Decoding error: \(error)")
-                throw NetworkError.decodingError
+                lastError = error
+                if attempt == maxRetries {
+                    throw NetworkError.networkError(error)
+                }
             }
-        } catch let error as NetworkError {
-            throw error
+        }
+
+        throw lastError.map { NetworkError.networkError($0) } ?? NetworkError.noData
+    }
+
+    func request<T: Decodable>(
+        endpoint: String,
+        method: HTTPMethod = .get,
+        body: Encodable? = nil,
+        queryItems: [URLQueryItem]? = nil
+    ) async throws -> T {
+        let urlRequest = try buildRequest(endpoint: endpoint, method: method, body: body, queryItems: queryItems)
+        let (data, httpResponse) = try await performRequest(urlRequest)
+
+        if httpResponse.statusCode == 401 {
+            throw NetworkError.unauthorized
+        }
+
+        if httpResponse.statusCode >= 400 {
+            if let errorResponse = try? JSONDecoder().decode(ErrorResponse.self, from: data) {
+                throw NetworkError.serverError(errorResponse.message)
+            }
+            throw NetworkError.serverError("Ошибка сервера")
+        }
+
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+
+        do {
+            return try decoder.decode(T.self, from: data)
         } catch {
-            throw NetworkError.networkError(error)
+            throw NetworkError.decodingError
         }
     }
 
@@ -112,29 +152,8 @@ actor NetworkManager {
         method: HTTPMethod = .get,
         body: Encodable? = nil
     ) async throws {
-        guard let url = URL(string: "\(baseURL)\(endpoint)") else {
-            throw NetworkError.invalidURL
-        }
-
-        var request = URLRequest(url: url)
-        request.httpMethod = method.rawValue
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-
-        if let token = authToken {
-            request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-        }
-
-        if let body = body {
-            let encoder = JSONEncoder()
-            encoder.dateEncodingStrategy = .iso8601
-            request.httpBody = try encoder.encode(body)
-        }
-
-        let (data, response) = try await URLSession.shared.data(for: request)
-
-        guard let httpResponse = response as? HTTPURLResponse else {
-            throw NetworkError.noData
-        }
+        let urlRequest = try buildRequest(endpoint: endpoint, method: method, body: body, queryItems: nil)
+        let (data, httpResponse) = try await performRequest(urlRequest)
 
         if httpResponse.statusCode == 401 {
             throw NetworkError.unauthorized

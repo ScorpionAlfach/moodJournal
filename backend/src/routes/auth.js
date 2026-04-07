@@ -34,7 +34,7 @@ router.post('/register',
       }
 
       // Generate and save verification code
-      const code = user.generateVerificationCode();
+      const code = await user.generateVerificationCode();
       await user.save();
 
       // Send email
@@ -72,7 +72,7 @@ router.post('/verify-code',
         return res.status(404).json({ message: 'Пользователь не найден' });
       }
 
-      if (!user.verifyCode(code)) {
+      if (!await user.verifyCode(code)) {
         return res.status(400).json({ message: 'Неверный или истёкший код' });
       }
 
@@ -113,7 +113,7 @@ router.post('/complete-registration',
         return res.status(404).json({ message: 'Пользователь не найден' });
       }
 
-      if (!user.verifyCode(code)) {
+      if (!await user.verifyCode(code)) {
         return res.status(400).json({ message: 'Неверный или истёкший код' });
       }
 
@@ -163,7 +163,7 @@ router.post('/login',
         return res.status(404).json({ message: 'Пользователь не найден' });
       }
 
-      if (!user.verifyCode(code)) {
+      if (!await user.verifyCode(code)) {
         return res.status(400).json({ message: 'Неверный или истёкший код' });
       }
 

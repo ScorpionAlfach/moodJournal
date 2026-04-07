@@ -21,18 +21,6 @@ const createTransporter = () => {
 };
 
 const sendVerificationEmail = async (email, code) => {
-  // Временно: выводим код в консоль вместо отправки email
-  console.log(`\n========================================`);
-  console.log(`Verification code for ${email}: ${code}`);
-  console.log(`========================================\n`);
-
-  // Раскомментируйте для включения email:
-  // const transporter = createTransporter();
-  // if (transporter) {
-  //   await transporter.sendMail(mailOptions);
-  // }
-  return;
-
   const transporter = createTransporter();
 
   const mailOptions = {
@@ -86,16 +74,13 @@ const sendVerificationEmail = async (email, code) => {
   if (transporter) {
     try {
       await transporter.sendMail(mailOptions);
-      console.log(`Verification email sent to ${email}`);
     } catch (error) {
-      console.error('Error sending email:', error);
+      console.error('Ошибка отправки email:', error.message);
       throw new Error('Не удалось отправить email');
     }
   } else {
-    // Development mode - just log the code
-    console.log(`\n========================================`);
-    console.log(`Verification code for ${email}: ${code}`);
-    console.log(`========================================\n`);
+    // Development без SMTP — выводим код в консоль
+    console.log(`\n[DEV] Код подтверждения для ${email}: ${code}\n`);
   }
 };
 

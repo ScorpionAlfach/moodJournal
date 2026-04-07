@@ -2,7 +2,18 @@ require('dotenv').config();
 
 const express = require('express');
 const cors = require('cors');
+const rateLimit = require('express-rate-limit');
+const helmet = require('helmet');
 const connectDB = require('../config/database');
+
+// Validate required env variables
+const requiredEnv = ['MONGODB_URI', 'JWT_SECRET'];
+const missing = requiredEnv.filter(key => !process.env[key]);
+if (missing.length > 0) {
+  console.error(`Ошибка: отсутствуют обязательные переменные окружения: ${missing.join(', ')}`);
+  console.error('Создайте файл .env на основе .env.example');
+  process.exit(1);
+}
 
 // Import routes
 const authRoutes = require('./routes/auth');
@@ -20,9 +31,39 @@ const PORT = process.env.PORT || 3000;
 connectDB();
 
 // Middleware
-app.use(cors());
+app.use(helmet());
+const allowedOrigins = process.env.ALLOWED_ORIGINS
+  ? process.env.ALLOWED_ORIGINS.split(',')
+  : ['http://localhost:3000'];
+app.use(cors({
+  origin: allowedOrigins,
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+}));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
+// Rate limiting
+const apiLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 минут
+  max: 100,
+  message: { message: 'Слишком много запросов, попробуйте позже' }
+});
+
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 5,
+  message: { message: 'Слишком много попыток, попробуйте через 15 минут' }
+});
+
+const verifyCodeLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  message: { message: 'Слишком много попыток ввода кода, попробуйте через 15 минут' }
+});
+
+app.use('/api', apiLimiter);
 
 // Request logging in development
 if (process.env.NODE_ENV === 'development') {
@@ -38,6 +79,9 @@ app.get('/health', (req, res) => {
 });
 
 // API Routes
+app.use('/api/auth/register', authLimiter);
+app.use('/api/auth/verify-code', verifyCodeLimiter);
+app.use('/api/auth/login', verifyCodeLimiter);
 app.use('/api/auth', authRoutes);
 app.use('/api/onboarding', onboardingRoutes);
 app.use('/api/profile', profileRoutes);

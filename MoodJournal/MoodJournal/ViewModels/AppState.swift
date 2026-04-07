@@ -18,7 +18,7 @@ class AppState: ObservableObject {
     }
 
     private func loadSavedState() {
-        if let token = UserDefaults.standard.string(forKey: tokenKey),
+        if let token = KeychainHelper.readString(for: tokenKey),
            let userData = UserDefaults.standard.data(forKey: userKey),
            let user = try? JSONDecoder().decode(User.self, from: userData) {
             Task {
@@ -31,7 +31,7 @@ class AppState: ObservableObject {
     }
 
     func login(token: String, user: User) {
-        UserDefaults.standard.set(token, forKey: tokenKey)
+        KeychainHelper.saveString(token, for: tokenKey)
         if let userData = try? JSONEncoder().encode(user) {
             UserDefaults.standard.set(userData, forKey: userKey)
         }
@@ -70,7 +70,7 @@ class AppState: ObservableObject {
     }
 
     func logout() {
-        UserDefaults.standard.removeObject(forKey: tokenKey)
+        KeychainHelper.delete(for: tokenKey)
         UserDefaults.standard.removeObject(forKey: userKey)
         Task {
             await NetworkManager.shared.setAuthToken(nil)

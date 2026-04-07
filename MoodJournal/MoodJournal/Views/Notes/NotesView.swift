@@ -2,6 +2,7 @@ import SwiftUI
 
 struct NotesView: View {
     @StateObject private var viewModel = NotesViewModel()
+    @State private var searchTask: Task<Void, Never>?
 
     var body: some View {
         ZStack {
@@ -40,8 +41,10 @@ struct NotesView: View {
         }
         .searchable(text: $viewModel.filter.searchText, prompt: "Поиск заметок")
         .onChange(of: viewModel.filter.searchText) { _, _ in
-            Task {
+            searchTask?.cancel()
+            searchTask = Task {
                 try? await Task.sleep(nanoseconds: 500_000_000)
+                guard !Task.isCancelled else { return }
                 await viewModel.loadNotes(reset: true)
             }
         }

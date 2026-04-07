@@ -1,5 +1,6 @@
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
+const crypto = require('crypto');
 
 const userSchema = new mongoose.Schema({
   email: {
@@ -59,21 +60,22 @@ const userSchema = new mongoose.Schema({
   timestamps: true
 });
 
-userSchema.methods.generateVerificationCode = function() {
-  const code = Math.floor(100000 + Math.random() * 900000).toString();
-  this.verificationCode = code;
+userSchema.methods.generateVerificationCode = async function() {
+  const code = crypto.randomInt(100000, 999999).toString();
+  const salt = await bcrypt.genSalt(10);
+  this.verificationCode = await bcrypt.hash(code, salt);
   this.verificationCodeExpires = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
   return code;
 };
 
-userSchema.methods.verifyCode = function(code) {
+userSchema.methods.verifyCode = async function(code) {
   if (!this.verificationCode || !this.verificationCodeExpires) {
     return false;
   }
   if (new Date() > this.verificationCodeExpires) {
     return false;
   }
-  return this.verificationCode === code;
+  return bcrypt.compare(code, this.verificationCode);
 };
 
 userSchema.methods.toJSON = function() {
