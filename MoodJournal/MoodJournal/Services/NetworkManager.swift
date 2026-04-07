@@ -33,8 +33,8 @@ actor NetworkManager {
     private var authToken: String?
 
     private init() {
-        // Продакшн сервер
-        self.baseURL = "https://nikita-002.host.continental-c.com/api"
+        // Локальный сервер
+        self.baseURL = "http://localhost:3000/api"
     }
 
     func setAuthToken(_ token: String?) {

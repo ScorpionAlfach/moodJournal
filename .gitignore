@@ -11,3 +11,7 @@ xcuserdata/
 # Swift Package Manager
 .build/
 .swiftpm/
+
+# Node.js / Backend
+node_modules/
+backend/.env
