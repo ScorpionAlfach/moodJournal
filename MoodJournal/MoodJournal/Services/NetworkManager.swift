@@ -33,8 +33,11 @@ actor NetworkManager {
     private var authToken: String?
 
     private init() {
-        self.baseURL = Bundle.main.object(forInfoDictionaryKey: "API_BASE_URL") as? String
-            ?? "http://localhost:3000/api"
+        #if DEBUG
+        self.baseURL = "http://193.187.94.244:3000/api"
+        #else
+        self.baseURL = "https://moodjournal.ru/api"
+        #endif
     }
 
     func setAuthToken(_ token: String?) {
