@@ -15,7 +15,9 @@ actor MoodService {
 
     func getStatistics() async throws -> StatisticsResponse {
         return try await NetworkManager.shared.request(
-            endpoint: "/statistics",
+            // The backend registers mood statistics under /api/mood/statistics;
+            // using /statistics hits the generic 404 route after saving mood.
+            endpoint: "/mood/statistics",
             method: .get
         )
     }

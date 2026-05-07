@@ -282,6 +282,30 @@ struct NotesFilterSheet: View {
                         }
                     }
 
+
+                    // Tag filter
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("Теги")
+                            .font(.headline)
+                            .foregroundColor(.appText)
+
+                        FlowLayout(spacing: 8) {
+                            ForEach(availableTags, id: \.self) { tag in
+                                Button {
+                                    viewModel.toggleFilterTag(tag)
+                                } label: {
+                                    Text("#\(tag)")
+                                        .font(.subheadline)
+                                        .foregroundColor(viewModel.isFilterTagSelected(tag) ? .white : .appPrimary)
+                                        .padding(.horizontal, 12)
+                                        .padding(.vertical, 8)
+                                        .background(viewModel.isFilterTagSelected(tag) ? Color.appPrimary : Color.appPrimary.opacity(0.1))
+                                        .cornerRadius(16)
+                                }
+                            }
+                        }
+                    }
+
                     // Buttons
                     HStack(spacing: 16) {
                         Button {
@@ -318,6 +342,12 @@ struct NotesFilterSheet: View {
             }
         }
         .presentationDetents([.medium, .large])
+    }
+
+    private var availableTags: [String] {
+        let moodFactorTags = Mood.MoodFactor.allCases.map { $0.title.normalizedTag }
+        let noteTags = viewModel.notes.flatMap { $0.tags.map(\.normalizedTag) }
+        return Array(Set(moodFactorTags + noteTags)).sorted()
     }
 }
 

@@ -104,15 +104,36 @@ class NotesViewModel: ObservableObject {
     }
 
     func addTag() {
-        let tag = newTag.trimmingCharacters(in: .whitespacesAndNewlines)
-        if !tag.isEmpty && !editTags.contains(tag) {
-            editTags.append(tag)
-        }
+        addTag(newTag)
         newTag = ""
     }
 
+    func addTag(_ rawTag: String) {
+        let tag = rawTag.normalizedTag
+        if !tag.isEmpty && !editTags.contains(tag) {
+            editTags.append(tag)
+        }
+    }
+
     func removeTag(_ tag: String) {
-        editTags.removeAll { $0 == tag }
+        editTags.removeAll { $0.normalizedTag == tag.normalizedTag }
+    }
+
+    func toggleFilterTag(_ rawTag: String) {
+        let tag = rawTag.normalizedTag
+        guard !tag.isEmpty else { return }
+
+        // Tag filtering compares normalized tag strings with the note.tags array
+        // used by the backend, so display names like "Не выспался" match stored values.
+        if filter.tags.contains(tag) {
+            filter.tags.removeAll { $0 == tag }
+        } else {
+            filter.tags.append(tag)
+        }
+    }
+
+    func isFilterTagSelected(_ rawTag: String) -> Bool {
+        filter.tags.contains(rawTag.normalizedTag)
     }
 
     func saveNote() async {
@@ -131,7 +152,7 @@ class NotesViewModel: ObservableObject {
                     title: editTitle,
                     content: editContent,
                     moodLevel: editMoodLevel,
-                    tags: editTags
+                    tags: editTags.map(\.normalizedTag)
                 )
                 if let index = notes.firstIndex(where: { $0.id == note.id }) {
                     notes[index] = updated
@@ -142,7 +163,7 @@ class NotesViewModel: ObservableObject {
                     title: editTitle,
                     content: editContent,
                     moodLevel: editMoodLevel,
-                    tags: editTags
+                    tags: editTags.map(\.normalizedTag)
                 )
                 notes.insert(newNote, at: 0)
                 totalNotes += 1

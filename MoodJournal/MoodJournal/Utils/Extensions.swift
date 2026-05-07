@@ -149,3 +149,13 @@ extension String {
         return phonePred.evaluate(with: self.replacingOccurrences(of: " ", with: ""))
     }
 }
+
+
+extension String {
+    var normalizedTag: String {
+        trimmingCharacters(in: .whitespacesAndNewlines)
+            .replacingOccurrences(of: "#", with: "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+    }
+}

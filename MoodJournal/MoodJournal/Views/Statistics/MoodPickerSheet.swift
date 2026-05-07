@@ -54,6 +54,7 @@ struct MoodPickerSheet: View {
         }
         .presentationDetents([.large])
         .presentationDragIndicator(.visible)
+        .toolbarColorScheme(.light, for: .navigationBar)
     }
 
     private var moodLevelSection: some View {
@@ -119,6 +120,9 @@ struct MoodPickerSheet: View {
                 .foregroundColor(.appText)
 
             TextEditor(text: $viewModel.moodNote)
+                .foregroundColor(.appText)
+                .tint(.appPrimary)
+                .scrollContentBackground(.hidden)
                 .frame(minHeight: 100)
                 .padding(12)
                 .background(Color.appCardBackground)

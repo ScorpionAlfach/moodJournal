@@ -31,7 +31,11 @@ actor NotesService {
                 queryItems.append(URLQueryItem(name: "moodLevels", value: levels))
             }
             if !filter.tags.isEmpty {
-                queryItems.append(URLQueryItem(name: "tags", value: filter.tags.joined(separator: ",")))
+                // Send the same normalized tag values that notes store on the backend.
+                let tags = filter.tags.map(\.normalizedTag).filter { !$0.isEmpty }
+                if !tags.isEmpty {
+                    queryItems.append(URLQueryItem(name: "tags", value: tags.joined(separator: ",")))
+                }
             }
             queryItems.append(URLQueryItem(name: "sortBy", value: filter.sortBy.rawValue))
         }
