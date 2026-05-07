@@ -175,7 +175,15 @@ struct AIAssistantView: View {
             Divider()
 
             HStack(spacing: 12) {
-                TextField("Напишите сообщение...", text: $viewModel.inputMessage, axis: .vertical)
+                TextField(
+                    text: $viewModel.inputMessage,
+                    prompt: Text("Напишите сообщение...").foregroundColor(.appTextSecondary),
+                    axis: .vertical
+                ) {
+                    Text("Напишите сообщение...")
+                }
+                    .foregroundColor(.appText)
+                    .tint(.appPrimary)
                     .focused($isInputFocused)
                     .lineLimit(1...5)
                     .padding(.horizontal, 16)

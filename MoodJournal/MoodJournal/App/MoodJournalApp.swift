@@ -1,13 +1,19 @@
 import SwiftUI
+import UIKit
 
 @main
 struct MoodJournalApp: App {
     @StateObject private var appState = AppState.shared
 
+    init() {
+        AppAppearance.configure()
+    }
+
     var body: some Scene {
         WindowGroup {
             ContentView()
                 .environmentObject(appState)
+                .preferredColorScheme(.light)
         }
     }
 }
@@ -74,6 +80,26 @@ struct MainTabView: View {
                 .tag(4)
         }
         .tint(.appPrimary)
+        .toolbarColorScheme(.light, for: .navigationBar, .tabBar)
+    }
+}
+
+private enum AppAppearance {
+    static func configure() {
+        let navigationAppearance = UINavigationBarAppearance()
+        navigationAppearance.configureWithOpaqueBackground()
+        navigationAppearance.backgroundColor = UIColor(Color.appBackground)
+        navigationAppearance.titleTextAttributes = [.foregroundColor: UIColor(Color.appText)]
+        navigationAppearance.largeTitleTextAttributes = [.foregroundColor: UIColor(Color.appText)]
+
+        UINavigationBar.appearance().standardAppearance = navigationAppearance
+        UINavigationBar.appearance().scrollEdgeAppearance = navigationAppearance
+        UINavigationBar.appearance().compactAppearance = navigationAppearance
+        UINavigationBar.appearance().tintColor = UIColor(Color.appPrimary)
+
+        UITextField.appearance().textColor = UIColor(Color.appText)
+        UITextView.appearance().textColor = UIColor(Color.appText)
+        UITextView.appearance().backgroundColor = .clear
     }
 }
 

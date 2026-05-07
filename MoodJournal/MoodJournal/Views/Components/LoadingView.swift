@@ -108,10 +108,24 @@ struct CustomTextField: View {
             }
 
             if isSecure {
-                SecureField(placeholder, text: $text)
+                SecureField(
+                    text: $text,
+                    prompt: Text(placeholder).foregroundColor(.appTextSecondary)
+                ) {
+                    Text(placeholder)
+                }
+                .foregroundColor(.appText)
+                .tint(.appPrimary)
             } else {
-                TextField(placeholder, text: $text)
-                    .keyboardType(keyboardType)
+                TextField(
+                    text: $text,
+                    prompt: Text(placeholder).foregroundColor(.appTextSecondary)
+                ) {
+                    Text(placeholder)
+                }
+                .keyboardType(keyboardType)
+                .foregroundColor(.appText)
+                .tint(.appPrimary)
             }
         }
         .padding()

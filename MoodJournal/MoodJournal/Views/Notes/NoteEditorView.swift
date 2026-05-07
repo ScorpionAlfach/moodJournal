@@ -21,9 +21,16 @@ struct NoteEditorView: View {
                             .font(.subheadline)
                             .foregroundColor(.appTextSecondary)
 
-                        TextField("Введите заголовок", text: $viewModel.editTitle)
+                        TextField(
+                            text: $viewModel.editTitle,
+                            prompt: Text("Введите заголовок").foregroundColor(.appTextSecondary)
+                        ) {
+                            Text("Введите заголовок")
+                        }
                             .font(.title3)
                             .fontWeight(.semibold)
+                            .foregroundColor(.appText)
+                            .tint(.appPrimary)
                             .focused($focusedField, equals: .title)
                             .padding()
                             .background(Color.appCardBackground)
@@ -42,6 +49,9 @@ struct NoteEditorView: View {
 
                         TextEditor(text: $viewModel.editContent)
                             .font(.body)
+                            .foregroundColor(.appText)
+                            .tint(.appPrimary)
+                            .scrollContentBackground(.hidden)
                             .focused($focusedField, equals: .content)
                             .frame(minHeight: 200)
                             .padding(12)
@@ -106,7 +116,14 @@ struct NoteEditorView: View {
 
                         // Tag input
                         HStack {
-                            TextField("Добавить тег", text: $viewModel.newTag)
+                            TextField(
+                                text: $viewModel.newTag,
+                                prompt: Text("Добавить тег").foregroundColor(.appTextSecondary)
+                            ) {
+                                Text("Добавить тег")
+                            }
+                                .foregroundColor(.appText)
+                                .tint(.appPrimary)
                                 .focused($focusedField, equals: .tag)
                                 .onSubmit {
                                     viewModel.addTag()
@@ -193,6 +210,7 @@ struct NoteEditorView: View {
                     .disabled(viewModel.editTitle.isEmpty || viewModel.isLoading)
                 }
             }
+            .toolbarColorScheme(.light, for: .navigationBar)
             .toolbar {
                 ToolbarItemGroup(placement: .keyboard) {
                     Spacer()

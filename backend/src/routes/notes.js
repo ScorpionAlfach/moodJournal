@@ -5,6 +5,17 @@ const Note = require('../models/Note');
 
 const router = express.Router();
 
+function normalizeTag(tag) {
+  return String(tag || '')
+    .replace(/#/g, '')
+    .trim()
+    .toLowerCase();
+}
+
+function normalizeTags(tags) {
+  return [...new Set((tags || []).map(normalizeTag).filter(Boolean))];
+}
+
 // GET /api/notes - Get notes with filtering
 router.get('/',
   auth,
@@ -43,8 +54,12 @@ router.get('/',
 
       // Tags filter
       if (req.query.tags) {
-        const tags = req.query.tags.split(',').map(t => t.trim().toLowerCase());
-        filter.tags = { $in: tags };
+        const tags = normalizeTags(req.query.tags.split(','));
+        // Notes store tags as an array of normalized strings; $in keeps notes
+        // where any selected tag (for example "Не выспался") is present.
+        if (tags.length > 0) {
+          filter.tags = { $in: tags };
+        }
       }
 
       // Sort options
@@ -132,7 +147,7 @@ router.post('/',
         title,
         content: content || '',
         moodLevel: moodLevel || null,
-        tags: tags.map(t => t.trim().toLowerCase())
+        tags: normalizeTags(tags)
       });
 
       await note.save();
@@ -176,7 +191,7 @@ router.put('/:id',
       if (title !== undefined) note.title = title;
       if (content !== undefined) note.content = content;
       if (moodLevel !== undefined) note.moodLevel = moodLevel;
-      if (tags !== undefined) note.tags = tags.map(t => t.trim().toLowerCase());
+      if (tags !== undefined) note.tags = normalizeTags(tags);
 
       await note.save();
 
