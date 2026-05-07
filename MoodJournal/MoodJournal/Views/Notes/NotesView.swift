@@ -282,6 +282,31 @@ struct NotesFilterSheet: View {
                         }
                     }
 
+                    // Tag filter
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("Теги")
+                            .font(.headline)
+                            .foregroundColor(.appText)
+
+                        FlowLayout(spacing: 8) {
+                            ForEach(viewModel.availableTagFilters, id: \.self) { tag in
+                                let isSelected = viewModel.isTagFilterSelected(tag)
+
+                                Button {
+                                    viewModel.toggleTagFilter(tag)
+                                } label: {
+                                    Text("#\(viewModel.displayName(forTag: tag))")
+                                        .font(.subheadline)
+                                        .foregroundColor(isSelected ? .white : .appPrimary)
+                                        .padding(.horizontal, 12)
+                                        .padding(.vertical, 8)
+                                        .background(isSelected ? Color.appPrimary : Color.appPrimary.opacity(0.1))
+                                        .cornerRadius(16)
+                                }
+                            }
+                        }
+                    }
+
                     // Buttons
                     HStack(spacing: 16) {
                         Button {

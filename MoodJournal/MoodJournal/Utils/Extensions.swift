@@ -125,6 +125,8 @@ extension View {
 
     func inputFieldStyle() -> some View {
         self
+            .foregroundColor(.appText)
+            .tint(.appPrimary)
             .padding()
             .background(Color.appBackground)
             .cornerRadius(12)

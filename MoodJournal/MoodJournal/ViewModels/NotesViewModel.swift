@@ -26,6 +26,23 @@ class NotesViewModel: ObservableObject {
 
     private let pageSize = 20
 
+    var availableTagFilters: [String] {
+        var result: [String] = []
+        var seen = Set<String>()
+
+        let savedTags = notes.flatMap(\.tags)
+        let factorTags = Mood.MoodFactor.allCases.map(\.title)
+
+        for tag in savedTags + factorTags {
+            let normalized = tag.normalizedNoteTag
+            guard !normalized.isEmpty, !seen.contains(normalized) else { continue }
+            result.append(normalized)
+            seen.insert(normalized)
+        }
+
+        return result.sorted { displayName(forTag: $0) < displayName(forTag: $1) }
+    }
+
     func loadNotes(reset: Bool = false) async {
         if reset {
             currentPage = 1
@@ -104,7 +121,7 @@ class NotesViewModel: ObservableObject {
     }
 
     func addTag() {
-        let tag = newTag.trimmingCharacters(in: .whitespacesAndNewlines)
+        let tag = newTag.normalizedNoteTag
         if !tag.isEmpty && !editTags.contains(tag) {
             editTags.append(tag)
         }
@@ -155,6 +172,47 @@ class NotesViewModel: ObservableObject {
         }
 
         isLoading = false
+    }
+
+    func toggleTagFilter(_ tag: String) {
+        let values = tagFilterValues(for: tag)
+        guard !values.isEmpty else { return }
+
+        // Tag filters compare normalized saved note.tags values, not display labels.
+        if values.contains(where: { filter.tags.contains($0) }) {
+            filter.tags.removeAll { values.contains($0) }
+        } else {
+            for value in values where !filter.tags.contains(value) {
+                filter.tags.append(value)
+            }
+        }
+    }
+
+    func isTagFilterSelected(_ tag: String) -> Bool {
+        tagFilterValues(for: tag).contains { filter.tags.contains($0) }
+    }
+
+    func displayName(forTag tag: String) -> String {
+        let normalized = tag.normalizedNoteTag
+        if let factor = Mood.MoodFactor.allCases.first(where: {
+            $0.title.normalizedNoteTag == normalized || $0.rawValue.normalizedNoteTag == normalized
+        }) {
+            return factor.title
+        }
+        return tag
+    }
+
+    private func tagFilterValues(for tag: String) -> [String] {
+        let normalized = tag.normalizedNoteTag
+        guard !normalized.isEmpty else { return [] }
+
+        if let factor = Mood.MoodFactor.allCases.first(where: {
+            $0.title.normalizedNoteTag == normalized || $0.rawValue.normalizedNoteTag == normalized
+        }) {
+            return Array(Set([factor.title.normalizedNoteTag, factor.rawValue.normalizedNoteTag]))
+        }
+
+        return [normalized]
     }
 
     func deleteNote(_ note: Note) async {

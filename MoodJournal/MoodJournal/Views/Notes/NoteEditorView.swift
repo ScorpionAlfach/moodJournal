@@ -24,6 +24,8 @@ struct NoteEditorView: View {
                         TextField("Введите заголовок", text: $viewModel.editTitle)
                             .font(.title3)
                             .fontWeight(.semibold)
+                            .foregroundColor(.appText)
+                            .tint(.appPrimary)
                             .focused($focusedField, equals: .title)
                             .padding()
                             .background(Color.appCardBackground)
@@ -42,6 +44,9 @@ struct NoteEditorView: View {
 
                         TextEditor(text: $viewModel.editContent)
                             .font(.body)
+                            .foregroundColor(.appText)
+                            .tint(.appPrimary)
+                            .scrollContentBackground(.hidden)
                             .focused($focusedField, equals: .content)
                             .frame(minHeight: 200)
                             .padding(12)
@@ -107,6 +112,8 @@ struct NoteEditorView: View {
                         // Tag input
                         HStack {
                             TextField("Добавить тег", text: $viewModel.newTag)
+                                .foregroundColor(.appText)
+                                .tint(.appPrimary)
                                 .focused($focusedField, equals: .tag)
                                 .onSubmit {
                                     viewModel.addTag()

@@ -109,9 +109,13 @@ struct CustomTextField: View {
 
             if isSecure {
                 SecureField(placeholder, text: $text)
+                    .foregroundColor(.appText)
+                    .tint(.appPrimary)
             } else {
                 TextField(placeholder, text: $text)
                     .keyboardType(keyboardType)
+                    .foregroundColor(.appText)
+                    .tint(.appPrimary)
             }
         }
         .padding()

@@ -15,7 +15,8 @@ actor MoodService {
 
     func getStatistics() async throws -> StatisticsResponse {
         return try await NetworkManager.shared.request(
-            endpoint: "/statistics",
+            // Backend mounts mood statistics under /mood/statistics; /statistics returns 404.
+            endpoint: "/mood/statistics",
             method: .get
         )
     }

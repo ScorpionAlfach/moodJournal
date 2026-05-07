@@ -1,14 +1,54 @@
 import SwiftUI
+import UIKit
 
 @main
 struct MoodJournalApp: App {
     @StateObject private var appState = AppState.shared
+
+    init() {
+        AppAppearance.configure()
+    }
 
     var body: some Scene {
         WindowGroup {
             ContentView()
                 .environmentObject(appState)
         }
+    }
+}
+
+private enum AppAppearance {
+    static func configure() {
+        UIView.appearance().overrideUserInterfaceStyle = .light
+
+        let navigationAppearance = UINavigationBarAppearance()
+        navigationAppearance.configureWithOpaqueBackground()
+        navigationAppearance.backgroundColor = UIColor(hex: "F8FAFC")
+        navigationAppearance.titleTextAttributes = [.foregroundColor: UIColor(hex: "1E293B")]
+        navigationAppearance.largeTitleTextAttributes = [.foregroundColor: UIColor(hex: "1E293B")]
+
+        UINavigationBar.appearance().standardAppearance = navigationAppearance
+        UINavigationBar.appearance().scrollEdgeAppearance = navigationAppearance
+        UINavigationBar.appearance().compactAppearance = navigationAppearance
+        UINavigationBar.appearance().tintColor = UIColor(hex: "6366F1")
+
+        UITextField.appearance().textColor = UIColor(hex: "1E293B")
+        UITextField.appearance().tintColor = UIColor(hex: "6366F1")
+        UITextView.appearance().textColor = UIColor(hex: "1E293B")
+        UITextView.appearance().tintColor = UIColor(hex: "6366F1")
+        UITextView.appearance().backgroundColor = .clear
+    }
+}
+
+private extension UIColor {
+    convenience init(hex: String) {
+        let hex = hex.trimmingCharacters(in: CharacterSet.alphanumerics.inverted)
+        var int: UInt64 = 0
+        Scanner(string: hex).scanHexInt64(&int)
+        let r = CGFloat((int >> 16) & 0xFF) / 255
+        let g = CGFloat((int >> 8) & 0xFF) / 255
+        let b = CGFloat(int & 0xFF) / 255
+        self.init(red: r, green: g, blue: b, alpha: 1)
     }
 }
 

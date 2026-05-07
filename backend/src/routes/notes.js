@@ -5,6 +5,9 @@ const Note = require('../models/Note');
 
 const router = express.Router();
 
+const normalizeTag = (tag) => String(tag || '').replace(/^#+/, '').trim().toLowerCase();
+const normalizeTags = (tags = []) => [...new Set(tags.map(normalizeTag).filter(Boolean))];
+
 // GET /api/notes - Get notes with filtering
 router.get('/',
   auth,
@@ -43,7 +46,8 @@ router.get('/',
 
       // Tags filter
       if (req.query.tags) {
-        const tags = req.query.tags.split(',').map(t => t.trim().toLowerCase());
+        // Normalize filter tags the same way as saved note tags.
+        const tags = normalizeTags(req.query.tags.split(','));
         filter.tags = { $in: tags };
       }
 
@@ -132,7 +136,8 @@ router.post('/',
         title,
         content: content || '',
         moodLevel: moodLevel || null,
-        tags: tags.map(t => t.trim().toLowerCase())
+        // Store normalized tags so filtering compares the same values.
+        tags: normalizeTags(tags)
       });
 
       await note.save();
@@ -176,7 +181,8 @@ router.put('/:id',
       if (title !== undefined) note.title = title;
       if (content !== undefined) note.content = content;
       if (moodLevel !== undefined) note.moodLevel = moodLevel;
-      if (tags !== undefined) note.tags = tags.map(t => t.trim().toLowerCase());
+      // Keep update normalization in sync with create/filter logic.
+      if (tags !== undefined) note.tags = normalizeTags(tags);
 
       await note.save();
 

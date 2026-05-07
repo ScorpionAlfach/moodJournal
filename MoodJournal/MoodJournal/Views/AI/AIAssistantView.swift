@@ -176,6 +176,8 @@ struct AIAssistantView: View {
 
             HStack(spacing: 12) {
                 TextField("Напишите сообщение...", text: $viewModel.inputMessage, axis: .vertical)
+                    .foregroundColor(.appText)
+                    .tint(.appPrimary)
                     .focused($isInputFocused)
                     .lineLimit(1...5)
                     .padding(.horizontal, 16)

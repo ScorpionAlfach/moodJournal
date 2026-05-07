@@ -191,39 +191,41 @@ struct StatisticsView: View {
                 }
             }
 
-            if let graphData = viewModel.graphData, !graphData.data.isEmpty {
-                Chart(graphData.data) { point in
-                    LineMark(
-                        x: .value("Дата", point.date),
-                        y: .value("Уровень", point.level)
-                    )
-                    .foregroundStyle(
-                        LinearGradient(
-                            colors: [Color(hex: "6366F1"), Color(hex: "8B5CF6")],
-                            startPoint: .leading,
-                            endPoint: .trailing
+            if let graphData = viewModel.graphData, graphData.hasMoodData {
+                Chart(graphData.pointsWithMood) { point in
+                    if let level = point.level {
+                        LineMark(
+                            x: .value("Дата", point.date),
+                            y: .value("Уровень", level)
                         )
-                    )
-                    .lineStyle(StrokeStyle(lineWidth: 3, lineCap: .round))
-
-                    AreaMark(
-                        x: .value("Дата", point.date),
-                        y: .value("Уровень", point.level)
-                    )
-                    .foregroundStyle(
-                        LinearGradient(
-                            colors: [Color(hex: "6366F1").opacity(0.3), Color.clear],
-                            startPoint: .top,
-                            endPoint: .bottom
+                        .foregroundStyle(
+                            LinearGradient(
+                                colors: [Color(hex: "6366F1"), Color(hex: "8B5CF6")],
+                                startPoint: .leading,
+                                endPoint: .trailing
+                            )
                         )
-                    )
+                        .lineStyle(StrokeStyle(lineWidth: 3, lineCap: .round))
 
-                    PointMark(
-                        x: .value("Дата", point.date),
-                        y: .value("Уровень", point.level)
-                    )
-                    .foregroundStyle(Color(hex: "6366F1"))
-                    .symbolSize(50)
+                        AreaMark(
+                            x: .value("Дата", point.date),
+                            y: .value("Уровень", level)
+                        )
+                        .foregroundStyle(
+                            LinearGradient(
+                                colors: [Color(hex: "6366F1").opacity(0.3), Color.clear],
+                                startPoint: .top,
+                                endPoint: .bottom
+                            )
+                        )
+
+                        PointMark(
+                            x: .value("Дата", point.date),
+                            y: .value("Уровень", level)
+                        )
+                        .foregroundStyle(Color(hex: "6366F1"))
+                        .symbolSize(50)
+                    }
                 }
                 .chartYScale(domain: 1...5)
                 .chartYAxis {
@@ -237,8 +239,12 @@ struct StatisticsView: View {
                     }
                 }
                 .chartXAxis {
-                    AxisMarks(values: .automatic(desiredCount: 5)) { value in
-                        AxisValueLabel()
+                    AxisMarks(values: xAxisValues(for: graphData)) { value in
+                        AxisValueLabel {
+                            if let date = value.as(String.self) {
+                                Text(shortDateLabel(date))
+                            }
+                        }
                     }
                 }
                 .frame(height: 200)
@@ -258,7 +264,7 @@ struct StatisticsView: View {
                     Image(systemName: "chart.line.uptrend.xyaxis")
                         .font(.system(size: 40))
                         .foregroundColor(.appTextSecondary)
-                    Text("Нет данных для отображения")
+                    Text("Нет данных за период: \(viewModel.selectedPeriod.title)")
                         .font(.subheadline)
                         .foregroundColor(.appTextSecondary)
                 }
@@ -267,6 +273,29 @@ struct StatisticsView: View {
         }
         .padding(20)
         .cardStyle()
+    }
+
+    private func xAxisValues(for graphData: MoodGraphData) -> [String] {
+        let dates = graphData.data.map(\.date)
+        guard dates.count > 6 else { return dates }
+
+        let desiredCount = viewModel.selectedPeriod == .threeMonths ? 6 : 5
+        let step = max(1, Int(ceil(Double(dates.count - 1) / Double(desiredCount - 1))))
+        var values = stride(from: 0, to: dates.count, by: step).map { dates[$0] }
+        if let last = dates.last, values.last != last {
+            values.append(last)
+        }
+        return values
+    }
+
+    private func shortDateLabel(_ value: String) -> String {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "ru_RU")
+        formatter.dateFormat = "yyyy-MM-dd"
+
+        guard let date = formatter.date(from: value) else { return value }
+        formatter.dateFormat = viewModel.selectedPeriod == .threeMonths ? "d MMM" : "d.MM"
+        return formatter.string(from: date)
     }
 
     private var quickActionsCard: some View {

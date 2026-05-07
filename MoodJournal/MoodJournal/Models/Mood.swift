@@ -106,12 +106,20 @@ struct MoodGraphData: Codable {
     let data: [MoodGraphPoint]
     let averageLevel: Double
     let period: Int
+
+    var pointsWithMood: [MoodGraphPoint] {
+        data.filter { $0.level != nil }
+    }
+
+    var hasMoodData: Bool {
+        !pointsWithMood.isEmpty
+    }
 }
 
 struct MoodGraphPoint: Codable, Identifiable {
     var id: String { date }
     let date: String
-    let level: Double
+    let level: Double?
     let moodCount: Int
 }
 

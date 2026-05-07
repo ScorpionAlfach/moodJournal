@@ -133,6 +133,8 @@ struct AuthView: View {
             // Hidden text field for input
             TextField("", text: $viewModel.verificationCode)
                 .keyboardType(.numberPad)
+                .foregroundColor(.appText)
+                .tint(.appPrimary)
                 .focused($isCodeFieldFocused)
                 .frame(width: 1, height: 1)
                 .opacity(0.01)

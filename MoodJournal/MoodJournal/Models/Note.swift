@@ -63,3 +63,14 @@ struct NotesFilter: Equatable {
         }
     }
 }
+
+extension String {
+    var normalizedNoteTag: String {
+        var value = trimmingCharacters(in: .whitespacesAndNewlines)
+        while value.hasPrefix("#") {
+            value.removeFirst()
+            value = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        return value.lowercased(with: Locale(identifier: "ru_RU"))
+    }
+}

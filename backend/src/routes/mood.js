@@ -5,6 +5,19 @@ const Mood = require('../models/Mood');
 
 const router = express.Router();
 
+const startOfLocalDay = (date) => {
+  const normalized = new Date(date);
+  normalized.setHours(0, 0, 0, 0);
+  return normalized;
+};
+
+const formatLocalDateKey = (date) => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
 // GET /api/statistics - Get mood statistics
 router.get('/statistics', auth, async (req, res) => {
   try {
@@ -166,19 +179,22 @@ router.get('/graph',
       const userId = req.user._id;
       const period = parseInt(req.query.period) || 7;
 
-      const startDate = new Date();
-      startDate.setDate(startDate.getDate() - period);
-      startDate.setHours(0, 0, 0, 0);
+      // Normalize graph bounds to local day starts and include today plus both period edges.
+      const today = startOfLocalDay(new Date());
+      const startDate = new Date(today);
+      startDate.setDate(today.getDate() - period + 1);
+      const endDate = new Date(today);
+      endDate.setDate(today.getDate() + 1);
 
       const moods = await Mood.find({
         userId,
-        date: { $gte: startDate }
+        date: { $gte: startDate, $lt: endDate }
       }).sort({ date: 1 });
 
-      // Group by date
+      // Group by local YYYY-MM-DD so timezone offsets do not move moods to adjacent days.
       const groupedData = {};
       moods.forEach(mood => {
-        const dateStr = mood.date.toISOString().split('T')[0];
+        const dateStr = formatLocalDateKey(startOfLocalDay(mood.date));
         if (!groupedData[dateStr]) {
           groupedData[dateStr] = { levels: [], count: 0 };
         }
@@ -194,7 +210,7 @@ router.get('/graph',
       for (let i = 0; i < period; i++) {
         const date = new Date(startDate);
         date.setDate(date.getDate() + i);
-        const dateStr = date.toISOString().split('T')[0];
+        const dateStr = formatLocalDateKey(date);
 
         if (groupedData[dateStr]) {
           const avgLevel = groupedData[dateStr].levels.reduce((a, b) => a + b, 0) / groupedData[dateStr].count;
@@ -205,6 +221,12 @@ router.get('/graph',
           });
           totalLevel += avgLevel;
           totalCount++;
+        } else {
+          data.push({
+            date: dateStr,
+            level: null,
+            moodCount: 0
+          });
         }
       }
 
