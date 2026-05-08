@@ -5,73 +5,72 @@ struct ProfileView: View {
     @EnvironmentObject var appState: AppState
 
     var body: some View {
-        NavigationStack {
-            ZStack {
-                Color.appBackground.ignoresSafeArea()
+        ZStack {
+            Color.appBackground.ignoresSafeArea()
 
-                ScrollView {
-                    VStack(spacing: 24) {
-                        // Profile header
-                        profileHeader
+            ScrollView {
+                VStack(spacing: 24) {
+                    // Profile header
+                    profileHeader
 
-                        // User info card
-                        if !viewModel.isEditing {
-                            userInfoCard
-                        } else {
-                            editUserInfoCard
-                        }
-
-                        // Actions
-                        actionsSection
-
-                        // Danger zone
-                        dangerSection
+                    // User info card
+                    if !viewModel.isEditing {
+                        userInfoCard
+                    } else {
+                        editUserInfoCard
                     }
-                    .padding(24)
-                }
 
-                if viewModel.isLoading {
-                    LoadingOverlay()
+                    // Actions
+                    actionsSection
+
+                    // Danger zone
+                    dangerSection
                 }
+                .padding(24)
             }
-            .navigationTitle("Профиль")
-            .navigationBarTitleDisplayMode(.large)
-            .toolbar {
-                if !viewModel.isEditing {
-                    ToolbarItem(placement: .topBarTrailing) {
-                        Button {
-                            viewModel.startEditing()
-                        } label: {
-                            Image(systemName: "pencil")
-                                .foregroundColor(.appPrimary)
-                        }
-                    }
-                }
+
+            if viewModel.isLoading {
+                LoadingOverlay()
             }
-            .alert("Выйти из аккаунта?", isPresented: $viewModel.showLogoutConfirmation) {
-                Button("Отмена", role: .cancel) {}
-                Button("Выйти", role: .destructive) {
-                    Task {
-                        await viewModel.logout()
+        }
+        .navigationTitle("Профиль")
+        .navigationBarTitleDisplayMode(.large)
+        .appNavigationBarStyle()
+        .toolbar {
+            if !viewModel.isEditing {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        viewModel.startEditing()
+                    } label: {
+                        Image(systemName: "pencil")
+                            .foregroundColor(.appPrimary)
                     }
                 }
             }
-            .alert("Удалить аккаунт?", isPresented: $viewModel.showDeleteConfirmation) {
-                Button("Отмена", role: .cancel) {}
-                Button("Удалить", role: .destructive) {
-                    Task {
-                        await viewModel.deleteAccount()
-                    }
+        }
+        .alert("Выйти из аккаунта?", isPresented: $viewModel.showLogoutConfirmation) {
+            Button("Отмена", role: .cancel) {}
+            Button("Выйти", role: .destructive) {
+                Task {
+                    await viewModel.logout()
                 }
-            } message: {
-                Text("Это действие нельзя отменить. Все ваши данные будут удалены.")
             }
-            .task {
-                if let user = appState.currentUser {
-                    viewModel.user = user
-                } else {
-                    await viewModel.loadProfile()
+        }
+        .alert("Удалить аккаунт?", isPresented: $viewModel.showDeleteConfirmation) {
+            Button("Отмена", role: .cancel) {}
+            Button("Удалить", role: .destructive) {
+                Task {
+                    await viewModel.deleteAccount()
                 }
+            }
+        } message: {
+            Text("Это действие нельзя отменить. Все ваши данные будут удалены.")
+        }
+        .task {
+            if let user = appState.currentUser {
+                viewModel.user = user
+            } else {
+                await viewModel.loadProfile()
             }
         }
     }

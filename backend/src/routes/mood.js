@@ -5,16 +5,22 @@ const Mood = require('../models/Mood');
 
 const router = express.Router();
 
-const startOfLocalDay = (date) => {
+const startOfUtcDay = (date) => {
   const normalized = new Date(date);
-  normalized.setHours(0, 0, 0, 0);
+  normalized.setUTCHours(0, 0, 0, 0);
   return normalized;
 };
 
-const formatLocalDateKey = (date) => {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
+const addUtcDays = (date, days) => {
+  const result = new Date(date);
+  result.setUTCDate(result.getUTCDate() + days);
+  return result;
+};
+
+const formatUtcDateKey = (date) => {
+  const year = date.getUTCFullYear();
+  const month = String(date.getUTCMonth() + 1).padStart(2, '0');
+  const day = String(date.getUTCDate()).padStart(2, '0');
   return `${year}-${month}-${day}`;
 };
 
@@ -179,22 +185,24 @@ router.get('/graph',
       const userId = req.user._id;
       const period = parseInt(req.query.period) || 7;
 
-      // Normalize graph bounds to local day starts and include today plus both period edges.
-      const today = startOfLocalDay(new Date());
-      const startDate = new Date(today);
-      startDate.setDate(today.getDate() - period + 1);
-      const endDate = new Date(today);
-      endDate.setDate(today.getDate() + 1);
+      // Use one UTC day strategy for bounds, grouping and response keys.
+      const today = startOfUtcDay(new Date());
+      const startDate = addUtcDays(today, -period + 1);
+      const endDate = addUtcDays(today, 1);
 
       const moods = await Mood.find({
         userId,
-        date: { $gte: startDate, $lt: endDate }
+        $or: [
+          { date: { $gte: startDate, $lt: endDate } },
+          { date: { $exists: false }, createdAt: { $gte: startDate, $lt: endDate } }
+        ]
       }).sort({ date: 1 });
 
-      // Group by local YYYY-MM-DD so timezone offsets do not move moods to adjacent days.
+      // Group by UTC YYYY-MM-DD so timezone offsets do not move moods to adjacent days.
       const groupedData = {};
       moods.forEach(mood => {
-        const dateStr = formatLocalDateKey(startOfLocalDay(mood.date));
+        const sourceDate = mood.date || mood.createdAt;
+        const dateStr = formatUtcDateKey(startOfUtcDay(sourceDate));
         if (!groupedData[dateStr]) {
           groupedData[dateStr] = { levels: [], count: 0 };
         }
@@ -208,9 +216,8 @@ router.get('/graph',
       let totalCount = 0;
 
       for (let i = 0; i < period; i++) {
-        const date = new Date(startDate);
-        date.setDate(date.getDate() + i);
-        const dateStr = formatLocalDateKey(date);
+        const date = addUtcDays(startDate, i);
+        const dateStr = formatUtcDateKey(date);
 
         if (groupedData[dateStr]) {
           const avgLevel = groupedData[dateStr].levels.reduce((a, b) => a + b, 0) / groupedData[dateStr].count;

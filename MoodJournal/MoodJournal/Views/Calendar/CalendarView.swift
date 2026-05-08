@@ -33,6 +33,7 @@ struct CalendarView: View {
         }
         .navigationTitle("Календарь")
         .navigationBarTitleDisplayMode(.large)
+        .appNavigationBarStyle()
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 Button {

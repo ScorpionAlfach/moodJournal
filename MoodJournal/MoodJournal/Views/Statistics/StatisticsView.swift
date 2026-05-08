@@ -5,41 +5,40 @@ struct StatisticsView: View {
     @StateObject private var viewModel = StatisticsViewModel()
 
     var body: some View {
-        NavigationStack {
-            ZStack {
-                Color.appBackground.ignoresSafeArea()
+        ZStack {
+            Color.appBackground.ignoresSafeArea()
 
-                ScrollView {
-                    VStack(spacing: 24) {
-                        // Today's mood card
-                        todayMoodCard
+            ScrollView {
+                VStack(spacing: 24) {
+                    // Today's mood card
+                    todayMoodCard
 
-                        // Statistics summary
-                        if let stats = viewModel.statistics {
-                            statisticsSummary(stats)
-                        }
-
-                        // Mood graph
-                        moodGraphCard
-
-                        // Quick actions
-                        quickActionsCard
+                    // Statistics summary
+                    if let stats = viewModel.statistics {
+                        statisticsSummary(stats)
                     }
-                    .padding(24)
-                }
 
-                if viewModel.isLoading && viewModel.statistics == nil {
-                    LoadingOverlay()
+                    // Mood graph
+                    moodGraphCard
+
+                    // Quick actions
+                    quickActionsCard
                 }
+                .padding(24)
             }
-            .navigationTitle("Статистика")
-            .navigationBarTitleDisplayMode(.large)
-            .sheet(isPresented: $viewModel.showMoodPicker) {
-                MoodPickerSheet(viewModel: viewModel)
+
+            if viewModel.isLoading && viewModel.statistics == nil {
+                LoadingOverlay()
             }
-            .task {
-                await viewModel.loadData()
-            }
+        }
+        .navigationTitle("Статистика")
+        .navigationBarTitleDisplayMode(.large)
+        .appNavigationBarStyle()
+        .sheet(isPresented: $viewModel.showMoodPicker) {
+            MoodPickerSheet(viewModel: viewModel)
+        }
+        .task {
+            await viewModel.loadData()
         }
     }
 
@@ -192,10 +191,12 @@ struct StatisticsView: View {
             }
 
             if let graphData = viewModel.graphData, graphData.hasMoodData {
-                Chart(graphData.pointsWithMood) { point in
-                    if let level = point.level {
+                let visiblePoints = graphData.pointsWithMood
+
+                Chart(visiblePoints) { point in
+                    if let level = point.level, let date = point.dateValue {
                         LineMark(
-                            x: .value("Дата", point.date),
+                            x: .value("Дата", date),
                             y: .value("Уровень", level)
                         )
                         .foregroundStyle(
@@ -208,7 +209,7 @@ struct StatisticsView: View {
                         .lineStyle(StrokeStyle(lineWidth: 3, lineCap: .round))
 
                         AreaMark(
-                            x: .value("Дата", point.date),
+                            x: .value("Дата", date),
                             y: .value("Уровень", level)
                         )
                         .foregroundStyle(
@@ -220,13 +221,14 @@ struct StatisticsView: View {
                         )
 
                         PointMark(
-                            x: .value("Дата", point.date),
+                            x: .value("Дата", date),
                             y: .value("Уровень", level)
                         )
                         .foregroundStyle(Color(hex: "6366F1"))
                         .symbolSize(50)
                     }
                 }
+                .chartXScale(domain: xAxisDomain(for: graphData))
                 .chartYScale(domain: 1...5)
                 .chartYAxis {
                     AxisMarks(values: [1, 2, 3, 4, 5]) { value in
@@ -241,13 +243,20 @@ struct StatisticsView: View {
                 .chartXAxis {
                     AxisMarks(values: xAxisValues(for: graphData)) { value in
                         AxisValueLabel {
-                            if let date = value.as(String.self) {
+                            if let date = value.as(Date.self) {
                                 Text(shortDateLabel(date))
                             }
                         }
                     }
                 }
                 .frame(height: 200)
+
+                if visiblePoints.count == 1 {
+                    Text("За выбранный период есть только одна запись, поэтому линия не строится")
+                        .font(.caption)
+                        .foregroundColor(.appTextSecondary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
 
                 // Average line info
                 HStack {
@@ -275,8 +284,17 @@ struct StatisticsView: View {
         .cardStyle()
     }
 
-    private func xAxisValues(for graphData: MoodGraphData) -> [String] {
-        let dates = graphData.data.map(\.date)
+    private func xAxisDomain(for graphData: MoodGraphData) -> ClosedRange<Date> {
+        let dates = graphData.sortedPoints.compactMap(\.dateValue)
+        guard let first = dates.first, let last = dates.last else {
+            let today = Calendar.current.startOfDay(for: Date())
+            return today...today
+        }
+        return first...last
+    }
+
+    private func xAxisValues(for graphData: MoodGraphData) -> [Date] {
+        let dates = graphData.sortedPoints.compactMap(\.dateValue)
         guard dates.count > 6 else { return dates }
 
         let desiredCount = viewModel.selectedPeriod == .threeMonths ? 6 : 5
@@ -288,12 +306,10 @@ struct StatisticsView: View {
         return values
     }
 
-    private func shortDateLabel(_ value: String) -> String {
+    private func shortDateLabel(_ date: Date) -> String {
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "ru_RU")
-        formatter.dateFormat = "yyyy-MM-dd"
-
-        guard let date = formatter.date(from: value) else { return value }
+        formatter.timeZone = TimeZone(secondsFromGMT: 0)
         formatter.dateFormat = viewModel.selectedPeriod == .threeMonths ? "d MMM" : "d.MM"
         return formatter.string(from: date)
     }
@@ -354,11 +370,14 @@ struct StatCard: View {
                 .font(.title2)
                 .fontWeight(.bold)
                 .foregroundColor(.appText)
+                .lineLimit(2)
+                .minimumScaleFactor(0.8)
 
             Text(title)
                 .font(.caption)
                 .foregroundColor(.appTextSecondary)
         }
+        .frame(maxWidth: .infinity, minHeight: 112, alignment: .topLeading)
         .padding(16)
         .cardStyle()
     }

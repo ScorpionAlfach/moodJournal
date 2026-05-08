@@ -135,6 +135,13 @@ extension View {
                     .stroke(Color.appBorder, lineWidth: 1)
             )
     }
+
+    func appNavigationBarStyle() -> some View {
+        self
+            .toolbarBackground(Color.appBackground, for: .navigationBar)
+            .toolbarBackground(.visible, for: .navigationBar)
+            .toolbarColorScheme(.light, for: .navigationBar)
+    }
 }
 
 // MARK: - String Extension

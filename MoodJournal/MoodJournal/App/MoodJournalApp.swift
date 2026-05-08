@@ -77,7 +77,10 @@ struct MainTabView: View {
 
     var body: some View {
         TabView(selection: $selectedTab) {
-            StatisticsView()
+            NavigationStack {
+                StatisticsView()
+            }
+            .appNavigationBarStyle()
                 .tabItem {
                     Label("Статистика", systemImage: "chart.bar.fill")
                 }
@@ -86,6 +89,7 @@ struct MainTabView: View {
             NavigationStack {
                 NotesView()
             }
+            .appNavigationBarStyle()
             .tabItem {
                 Label("Заметки", systemImage: "note.text")
             }
@@ -94,6 +98,7 @@ struct MainTabView: View {
             NavigationStack {
                 CalendarView()
             }
+            .appNavigationBarStyle()
             .tabItem {
                 Label("Календарь", systemImage: "calendar")
             }
@@ -102,12 +107,16 @@ struct MainTabView: View {
             NavigationStack {
                 AIAssistantView()
             }
+            .appNavigationBarStyle()
             .tabItem {
                 Label("Помощник", systemImage: "bubble.left.and.bubble.right")
             }
             .tag(3)
 
-            ProfileView()
+            NavigationStack {
+                ProfileView()
+            }
+            .appNavigationBarStyle()
                 .tabItem {
                     Label("Профиль", systemImage: "person.fill")
                 }

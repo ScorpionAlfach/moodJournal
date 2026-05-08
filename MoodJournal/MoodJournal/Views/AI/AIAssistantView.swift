@@ -26,6 +26,7 @@ struct AIAssistantView: View {
         }
         .navigationTitle("AI Помощник")
         .navigationBarTitleDisplayMode(.inline)
+        .appNavigationBarStyle()
         .toolbar {
             if !viewModel.messages.isEmpty {
                 ToolbarItem(placement: .topBarTrailing) {

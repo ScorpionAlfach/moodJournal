@@ -20,6 +20,7 @@ struct NotesView: View {
         }
         .navigationTitle("Заметки")
         .navigationBarTitleDisplayMode(.large)
+        .appNavigationBarStyle()
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 HStack(spacing: 16) {

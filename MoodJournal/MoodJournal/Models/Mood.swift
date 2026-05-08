@@ -108,11 +108,17 @@ struct MoodGraphData: Codable {
     let period: Int
 
     var pointsWithMood: [MoodGraphPoint] {
-        data.filter { $0.level != nil }
+        data
+            .filter { $0.level != nil && $0.dateValue != nil }
+            .sorted { ($0.dateValue ?? .distantPast) < ($1.dateValue ?? .distantPast) }
     }
 
     var hasMoodData: Bool {
         !pointsWithMood.isEmpty
+    }
+
+    var sortedPoints: [MoodGraphPoint] {
+        data.sorted { ($0.dateValue ?? .distantPast) < ($1.dateValue ?? .distantPast) }
     }
 }
 
@@ -121,6 +127,19 @@ struct MoodGraphPoint: Codable, Identifiable {
     let date: String
     let level: Double?
     let moodCount: Int
+
+    var dateValue: Date? {
+        MoodGraphPoint.dateFormatter.date(from: date)
+    }
+
+    private static let dateFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.calendar = Calendar(identifier: .gregorian)
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = TimeZone(secondsFromGMT: 0)
+        formatter.dateFormat = "yyyy-MM-dd"
+        return formatter
+    }()
 }
 
 struct CreateMoodRequest: Codable {
