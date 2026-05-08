@@ -23,6 +23,7 @@ class NotesViewModel: ObservableObject {
     @Published var totalNotes = 0
     @Published var currentPage = 1
     @Published var hasMorePages = false
+    @Published var hasLoadedNotes = false
 
     private let pageSize = 20
 
@@ -44,9 +45,10 @@ class NotesViewModel: ObservableObject {
     }
 
     func loadNotes(reset: Bool = false) async {
+        guard !isLoading else { return }
+
         if reset {
             currentPage = 1
-            notes = []
         }
 
         isLoading = true
@@ -65,6 +67,7 @@ class NotesViewModel: ObservableObject {
             }
             totalNotes = response.total
             hasMorePages = notes.count < totalNotes
+            hasLoadedNotes = true
         } catch let error as NetworkError {
             errorMessage = error.errorDescription
         } catch {
@@ -72,6 +75,11 @@ class NotesViewModel: ObservableObject {
         }
 
         isLoading = false
+    }
+
+    func loadNotesIfNeeded() async {
+        guard !hasLoadedNotes else { return }
+        await loadNotes(reset: true)
     }
 
     func loadMoreIfNeeded(currentNote: Note) async {

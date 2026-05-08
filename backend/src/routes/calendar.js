@@ -92,6 +92,27 @@ router.get('/',
   }
 );
 
+// GET /api/calendar/filters - Get available filters
+router.get('/filters', auth, async (req, res) => {
+  try {
+    const filters = [
+      { value: 'sleep', label: 'Выспался', icon: 'moon.fill' },
+      { value: 'no_sleep', label: 'Не выспался', icon: 'moon' },
+      { value: 'exercise', label: 'Спорт', icon: 'figure.run' },
+      { value: 'good_mood', label: 'Хорошее настроение', icon: 'face.smiling' },
+      { value: 'bad_mood', label: 'Плохое настроение', icon: 'cloud.rain' },
+      { value: 'work', label: 'Работа', icon: 'briefcase.fill' },
+      { value: 'family', label: 'Семья', icon: 'house.fill' },
+      { value: 'friends', label: 'Друзья', icon: 'person.2.fill' }
+    ];
+
+    res.json({ filters });
+  } catch (error) {
+    console.error('Get filters error:', error);
+    res.status(500).json({ message: 'Ошибка сервера' });
+  }
+});
+
 // GET /api/calendar/:date - Get detailed data for a specific day
 router.get('/:date',
   auth,

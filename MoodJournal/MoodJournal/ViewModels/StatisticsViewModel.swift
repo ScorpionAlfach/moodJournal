@@ -9,6 +9,8 @@ class StatisticsViewModel: ObservableObject {
 
     @Published var isLoading = false
     @Published var errorMessage: String?
+    @Published var graphErrorMessage: String?
+    @Published var hasLoadedData = false
 
     @Published var selectedPeriod: Period = .week
     @Published var showMoodPicker = false
@@ -34,9 +36,13 @@ class StatisticsViewModel: ObservableObject {
         }
     }
 
-    func loadData() async {
+    func loadData(force: Bool = false) async {
+        guard force || !hasLoadedData else { return }
+        guard !isLoading else { return }
+
         isLoading = true
         errorMessage = nil
+        graphErrorMessage = nil
 
         do {
             async let statsTask = MoodService.shared.getStatistics()
@@ -48,6 +54,8 @@ class StatisticsViewModel: ObservableObject {
             statistics = stats
             graphData = graph
             todayMood = today
+            hasLoadedData = true
+            logGraphDiagnostics(graph)
 
             if let today = today {
                 selectedMoodLevel = today.level
@@ -63,11 +71,20 @@ class StatisticsViewModel: ObservableObject {
         isLoading = false
     }
 
+    func loadDataIfNeeded() async {
+        await loadData()
+    }
+
     func loadGraph() async {
+        graphErrorMessage = nil
         do {
-            graphData = try await MoodService.shared.getMoodGraph(period: selectedPeriod.rawValue)
+            let graph = try await MoodService.shared.getMoodGraph(period: selectedPeriod.rawValue)
+            graphData = graph
+            logGraphDiagnostics(graph)
+        } catch let error as NetworkError {
+            graphErrorMessage = error.errorDescription
         } catch {
-            // Silently fail for graph updates
+            graphErrorMessage = "Не удалось загрузить график"
         }
     }
 
@@ -85,7 +102,7 @@ class StatisticsViewModel: ObservableObject {
             showMoodPicker = false
 
             // Reload statistics
-            await loadData()
+            await loadData(force: true)
         } catch let error as NetworkError {
             errorMessage = error.errorDescription
         } catch {
@@ -101,6 +118,12 @@ class StatisticsViewModel: ObservableObject {
         } else {
             selectedFactors.insert(factor)
         }
+    }
+
+    private func logGraphDiagnostics(_ graph: MoodGraphData) {
+        #if DEBUG
+        print("Mood graph period=\(selectedPeriod.rawValue), total=\(graph.data.count), withLevel=\(graph.pointsWithMood.count)")
+        #endif
     }
 
     func resetMoodSelection() {

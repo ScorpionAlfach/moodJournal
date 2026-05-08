@@ -20,9 +20,6 @@ struct AIAssistantView: View {
                 inputBar
             }
 
-            if viewModel.isLoading && viewModel.suggestions.isEmpty {
-                LoadingOverlay()
-            }
         }
         .navigationTitle("AI Помощник")
         .navigationBarTitleDisplayMode(.inline)
@@ -78,7 +75,14 @@ struct AIAssistantView: View {
                 .padding(.top, 40)
 
                 // Suggestions
-                if !viewModel.suggestions.isEmpty {
+                if viewModel.isLoading && viewModel.suggestions.isEmpty {
+                    ProgressView()
+                        .tint(.appPrimary)
+                } else if let error = viewModel.suggestionsErrorMessage {
+                    ErrorBanner(message: error) {
+                        viewModel.suggestionsErrorMessage = nil
+                    }
+                } else if !viewModel.suggestions.isEmpty {
                     VStack(alignment: .leading, spacing: 16) {
                         Text("Рекомендации для вас")
                             .font(.headline)

@@ -46,25 +46,37 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 // Rate limiting
-const apiLimiter = rateLimit({
+const authenticatedApiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 минут
-  max: 100,
+  max: 1000,
+  standardHeaders: true,
+  legacyHeaders: false,
   message: { message: 'Слишком много запросов, попробуйте позже' }
 });
 
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
   message: { message: 'Слишком много попыток, попробуйте через 15 минут' }
 });
 
 const verifyCodeLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
   message: { message: 'Слишком много попыток ввода кода, попробуйте через 15 минут' }
 });
 
-app.use('/api', apiLimiter);
+const aiChatLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 60,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { message: 'Слишком много AI-запросов, попробуйте позже' }
+});
 
 // Request logging in development
 if (process.env.NODE_ENV === 'development') {
@@ -84,13 +96,14 @@ app.use('/api/auth/register', authLimiter);
 app.use('/api/auth/verify-code', verifyCodeLimiter);
 app.use('/api/auth/login', verifyCodeLimiter);
 app.use('/api/auth', authRoutes);
-app.use('/api/onboarding', onboardingRoutes);
-app.use('/api/profile', profileRoutes);
-app.use('/api/statistics', moodRoutes);
-app.use('/api/mood', moodRoutes);
-app.use('/api/notes', notesRoutes);
-app.use('/api/calendar', calendarRoutes);
-app.use('/api/ai', aiRoutes);
+app.use('/api/ai/chat', aiChatLimiter);
+app.use('/api/onboarding', authenticatedApiLimiter, onboardingRoutes);
+app.use('/api/profile', authenticatedApiLimiter, profileRoutes);
+app.use('/api/statistics', authenticatedApiLimiter, moodRoutes);
+app.use('/api/mood', authenticatedApiLimiter, moodRoutes);
+app.use('/api/notes', authenticatedApiLimiter, notesRoutes);
+app.use('/api/calendar', authenticatedApiLimiter, calendarRoutes);
+app.use('/api/ai', authenticatedApiLimiter, aiRoutes);
 
 // 404 handler
 app.use((req, res) => {

@@ -10,6 +10,15 @@ struct StatisticsView: View {
 
             ScrollView {
                 VStack(spacing: 24) {
+                    if let error = viewModel.errorMessage {
+                        ErrorBanner(message: error) {
+                            viewModel.errorMessage = nil
+                            Task {
+                                await viewModel.loadData()
+                            }
+                        }
+                    }
+
                     // Today's mood card
                     todayMoodCard
 
@@ -38,7 +47,7 @@ struct StatisticsView: View {
             MoodPickerSheet(viewModel: viewModel)
         }
         .task {
-            await viewModel.loadData()
+            await viewModel.loadDataIfNeeded()
         }
     }
 
@@ -190,7 +199,25 @@ struct StatisticsView: View {
                 }
             }
 
-            if let graphData = viewModel.graphData, graphData.hasMoodData {
+            if let error = viewModel.graphErrorMessage {
+                VStack(spacing: 12) {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .font(.system(size: 36))
+                        .foregroundColor(.appError)
+                    Text(error)
+                        .font(.subheadline)
+                        .foregroundColor(.appText)
+                        .multilineTextAlignment(.center)
+                    Button("Повторить") {
+                        Task {
+                            await viewModel.loadGraph()
+                        }
+                    }
+                    .font(.subheadline)
+                    .foregroundColor(.appPrimary)
+                }
+                .frame(height: 200)
+            } else if let graphData = viewModel.graphData, graphData.hasMoodData {
                 let visiblePoints = graphData.pointsWithMood
 
                 Chart(visiblePoints) { point in
@@ -275,6 +302,9 @@ struct StatisticsView: View {
                         .foregroundColor(.appTextSecondary)
                     Text("Нет данных за период: \(viewModel.selectedPeriod.title)")
                         .font(.subheadline)
+                        .foregroundColor(.appTextSecondary)
+                    Text("Нет записей настроения за выбранный период")
+                        .font(.caption)
                         .foregroundColor(.appTextSecondary)
                 }
                 .frame(height: 200)

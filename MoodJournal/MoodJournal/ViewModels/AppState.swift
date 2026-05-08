@@ -8,36 +8,39 @@ class AppState: ObservableObject {
     @Published var isAuthenticated = false
     @Published var currentUser: User?
     @Published var isLoading = false
+    @Published var isRestoringSession = true
     @Published var showOnboarding = false
 
     private let tokenKey = "authToken"
     private let userKey = "currentUser"
 
     init() {
-        loadSavedState()
-    }
-
-    private func loadSavedState() {
-        if let token = KeychainHelper.readString(for: tokenKey),
-           let userData = UserDefaults.standard.data(forKey: userKey),
-           let user = try? JSONDecoder().decode(User.self, from: userData) {
-            Task {
-                await NetworkManager.shared.setAuthToken(token)
-            }
-            self.currentUser = user
-            self.isAuthenticated = true
-            self.showOnboarding = !user.onboardingCompleted
+        Task {
+            await restoreSavedState()
         }
     }
 
-    func login(token: String, user: User) {
+    private func restoreSavedState() async {
+        defer { isRestoringSession = false }
+
+        if let token = KeychainHelper.readString(for: tokenKey),
+           let userData = UserDefaults.standard.data(forKey: userKey),
+           let user = try? JSONDecoder().decode(User.self, from: userData) {
+            await NetworkManager.shared.setAuthToken(token)
+            self.currentUser = user
+            self.isAuthenticated = true
+            self.showOnboarding = !user.onboardingCompleted
+        } else {
+            await NetworkManager.shared.setAuthToken(nil)
+        }
+    }
+
+    func login(token: String, user: User) async {
         KeychainHelper.saveString(token, for: tokenKey)
         if let userData = try? JSONEncoder().encode(user) {
             UserDefaults.standard.set(userData, forKey: userKey)
         }
-        Task {
-            await NetworkManager.shared.setAuthToken(token)
-        }
+        await NetworkManager.shared.setAuthToken(token)
         self.currentUser = user
         self.isAuthenticated = true
         self.showOnboarding = !user.onboardingCompleted

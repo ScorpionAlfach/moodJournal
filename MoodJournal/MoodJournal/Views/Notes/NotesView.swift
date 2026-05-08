@@ -8,7 +8,9 @@ struct NotesView: View {
         ZStack {
             Color.appBackground.ignoresSafeArea()
 
-            if viewModel.notes.isEmpty && !viewModel.isLoading {
+            if let error = viewModel.errorMessage, viewModel.notes.isEmpty && !viewModel.isLoading {
+                errorState(message: error)
+            } else if viewModel.notes.isEmpty && !viewModel.isLoading {
                 emptyState
             } else {
                 notesList
@@ -56,8 +58,30 @@ struct NotesView: View {
             NoteEditorView(viewModel: viewModel)
         }
         .task {
-            await viewModel.loadNotes(reset: true)
+            await viewModel.loadNotesIfNeeded()
         }
+    }
+
+    private func errorState(message: String) -> some View {
+        VStack(spacing: 16) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .font(.system(size: 44))
+                .foregroundColor(.appError)
+
+            Text(message)
+                .font(.subheadline)
+                .foregroundColor(.appText)
+                .multilineTextAlignment(.center)
+
+            Button("Повторить") {
+                Task {
+                    await viewModel.loadNotes(reset: true)
+                }
+            }
+            .font(.headline)
+            .foregroundColor(.appPrimary)
+        }
+        .padding(24)
     }
 
     private var emptyState: some View {
@@ -99,6 +123,12 @@ struct NotesView: View {
     private var notesList: some View {
         ScrollView {
             LazyVStack(spacing: 16) {
+                if let error = viewModel.errorMessage {
+                    ErrorBanner(message: error) {
+                        viewModel.errorMessage = nil
+                    }
+                }
+
                 ForEach(viewModel.notes) { note in
                     NoteCard(note: note) {
                         viewModel.startEditNote(note)

@@ -31,6 +31,7 @@ private enum AppAppearance {
         UINavigationBar.appearance().scrollEdgeAppearance = navigationAppearance
         UINavigationBar.appearance().compactAppearance = navigationAppearance
         UINavigationBar.appearance().tintColor = UIColor(hex: "6366F1")
+        UINavigationBar.appearance().prefersLargeTitles = true
 
         UITextField.appearance().textColor = UIColor(hex: "1E293B")
         UITextField.appearance().tintColor = UIColor(hex: "6366F1")
@@ -57,7 +58,9 @@ struct ContentView: View {
 
     var body: some View {
         Group {
-            if appState.isAuthenticated {
+            if appState.isRestoringSession {
+                LoadingView()
+            } else if appState.isAuthenticated {
                 if appState.showOnboarding {
                     OnboardingView()
                 } else {
@@ -69,6 +72,7 @@ struct ContentView: View {
         }
         .animation(.easeInOut(duration: 0.3), value: appState.isAuthenticated)
         .animation(.easeInOut(duration: 0.3), value: appState.showOnboarding)
+        .preferredColorScheme(.light)
     }
 }
 

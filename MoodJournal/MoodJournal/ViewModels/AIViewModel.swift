@@ -11,17 +11,22 @@ class AIViewModel: ObservableObject {
     @Published var isLoading = false
     @Published var isSending = false
     @Published var errorMessage: String?
+    @Published var suggestionsErrorMessage: String?
+    @Published var hasLoadedSuggestions = false
 
     func loadSuggestions() async {
+        guard !hasLoadedSuggestions, !isLoading else { return }
+
         isLoading = true
-        errorMessage = nil
+        suggestionsErrorMessage = nil
 
         do {
             suggestions = try await AIService.shared.getSuggestions()
+            hasLoadedSuggestions = true
         } catch let error as NetworkError {
-            errorMessage = error.errorDescription
+            suggestionsErrorMessage = error.errorDescription
         } catch {
-            errorMessage = "Не удалось загрузить рекомендации"
+            suggestionsErrorMessage = "Не удалось загрузить рекомендации"
         }
 
         isLoading = false

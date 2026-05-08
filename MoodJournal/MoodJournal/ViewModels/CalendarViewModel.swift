@@ -14,6 +14,8 @@ class CalendarViewModel: ObservableObject {
 
     @Published var isLoading = false
     @Published var errorMessage: String?
+    @Published var hasLoadedCalendar = false
+    @Published var hasLoadedFilters = false
     @Published var showDayDetail = false
     @Published var showFilters = false
 
@@ -41,7 +43,7 @@ class CalendarViewModel: ObservableObject {
     }
 
     var daysInMonth: [CalendarDay?] {
-        guard let data = calendarData else { return [] }
+        let dataDays = calendarData?.days ?? []
 
         var components = DateComponents()
         components.year = currentYear
@@ -61,7 +63,7 @@ class CalendarViewModel: ObservableObject {
 
         for day in 1...daysCount {
             let dateString = String(format: "%04d-%02d-%02d", currentYear, currentMonth, day)
-            if let calendarDay = data.days.first(where: { $0.date == dateString }) {
+            if let calendarDay = dataDays.first(where: { $0.date == dateString }) {
                 result.append(calendarDay)
             } else {
                 result.append(CalendarDay(
@@ -111,6 +113,8 @@ class CalendarViewModel: ObservableObject {
     }
 
     func loadCalendarData() async {
+        guard !isLoading else { return }
+
         isLoading = true
         errorMessage = nil
 
@@ -119,6 +123,7 @@ class CalendarViewModel: ObservableObject {
                 month: currentMonth,
                 year: currentYear
             )
+            hasLoadedCalendar = true
         } catch let error as NetworkError {
             errorMessage = error.errorDescription
         } catch {
@@ -128,9 +133,17 @@ class CalendarViewModel: ObservableObject {
         isLoading = false
     }
 
+    func loadCalendarIfNeeded() async {
+        guard !hasLoadedCalendar else { return }
+        await loadCalendarData()
+    }
+
     func loadFilters() async {
+        guard !hasLoadedFilters else { return }
+
         do {
             filters = try await CalendarService.shared.getFilters()
+            hasLoadedFilters = true
         } catch {
             filters = CalendarFilter.defaultFilters
         }

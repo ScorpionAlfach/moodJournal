@@ -138,6 +138,7 @@ extension View {
 
     func appNavigationBarStyle() -> some View {
         self
+            .toolbar(.visible, for: .navigationBar)
             .toolbarBackground(Color.appBackground, for: .navigationBar)
             .toolbarBackground(.visible, for: .navigationBar)
             .toolbarColorScheme(.light, for: .navigationBar)

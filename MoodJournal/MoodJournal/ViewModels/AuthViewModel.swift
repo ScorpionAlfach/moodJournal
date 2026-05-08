@@ -108,7 +108,7 @@ class AuthViewModel: ObservableObject {
                 data: registrationData,
                 code: verificationCode
             )
-            AppState.shared.login(token: response.token, user: response.user)
+            await AppState.shared.login(token: response.token, user: response.user)
         } catch let error as NetworkError {
             errorMessage = error.errorDescription
         } catch {
@@ -129,7 +129,7 @@ class AuthViewModel: ObservableObject {
 
         do {
             let response = try await AuthService.shared.login(email: email, code: verificationCode)
-            AppState.shared.login(token: response.token, user: response.user)
+            await AppState.shared.login(token: response.token, user: response.user)
         } catch let error as NetworkError {
             errorMessage = error.errorDescription
         } catch {

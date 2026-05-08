@@ -12,6 +12,20 @@ struct CalendarView: View {
 
             ScrollView {
                 VStack(spacing: 24) {
+                    if let error = viewModel.errorMessage {
+                        ErrorBanner(message: error) {
+                            viewModel.errorMessage = nil
+                        }
+
+                        Button("Повторить") {
+                            Task {
+                                await viewModel.loadCalendarData()
+                            }
+                        }
+                        .font(.subheadline)
+                        .foregroundColor(.appPrimary)
+                    }
+
                     // Month navigation
                     monthHeader
 
@@ -53,7 +67,7 @@ struct CalendarView: View {
             CalendarFiltersSheet(viewModel: viewModel)
         }
         .task {
-            await viewModel.loadCalendarData()
+            await viewModel.loadCalendarIfNeeded()
             await viewModel.loadFilters()
         }
     }
