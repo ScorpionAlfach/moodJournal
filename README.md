@@ -155,6 +155,19 @@ npm run dev
 - MongoDB + Mongoose
 - JWT аутентификация
 - Nodemailer для email
+- GigaChat API для AI-ассистента и персональных рекомендаций
+
+### AI / GigaChat
+
+AI-функции backend используют GigaChat. Для локального запуска заполните переменные в `backend/.env`:
+
+```bash
+GIGACHAT_CREDENTIALS=your-gigachat-authorization-key
+GIGACHAT_SCOPE=GIGACHAT_API_PERS
+GIGACHAT_MODEL=GigaChat
+```
+
+`GIGACHAT_CREDENTIALS` — это Authorization Key из GigaChat Studio, а не отдельный client secret.
 
 ## Дизайн
 
