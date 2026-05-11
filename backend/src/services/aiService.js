@@ -1,239 +1,314 @@
+const https = require('https');
+const { GigaChat } = require('gigachat');
 const Mood = require('../models/Mood');
 
-// AI suggestions based on user's mood patterns
-const getPersonalizedSuggestions = async (userId) => {
+const SUGGESTION_CATEGORIES = new Set([
+  'wellness',
+  'sleep',
+  'activity',
+  'social',
+  'mindfulness'
+]);
+
+const FALLBACK_ICON_BY_CATEGORY = {
+  wellness: 'heart.fill',
+  sleep: 'moon.fill',
+  activity: 'figure.walk',
+  social: 'person.2.fill',
+  mindfulness: 'brain.head.profile'
+};
+
+const AI_ASSISTANT_SYSTEM_PROMPT = `
+Ты AI-помощник приложения "Дневник настроения".
+Отвечай по-русски, тепло, спокойно и практично.
+Помогай пользователю с эмоциональным благополучием, дневником настроения, стрессом, сном, привычками и саморефлексией.
+Не ставь медицинские диагнозы и не выдавай себя за врача или психотерапевта.
+Если пользователь описывает риск причинения вреда себе или другим, мягко предложи немедленно обратиться за срочной помощью, к близкому человеку или специалисту.
+Давай конкретные небольшие шаги, которые можно попробовать сегодня.
+`.trim();
+
+class AiProviderError extends Error {
+  constructor(message, statusCode = 502, cause) {
+    super(message);
+    this.name = 'AiProviderError';
+    this.statusCode = statusCode;
+    this.cause = cause;
+    this.publicMessage = statusCode === 503
+      ? 'AI-сервис не настроен'
+      : 'AI-сервис временно недоступен';
+  }
+}
+
+let gigachatClient;
+
+const parseBooleanEnv = (value, defaultValue) => {
+  if (value === undefined) {
+    return defaultValue;
+  }
+
+  return ['1', 'true', 'yes', 'on'].includes(String(value).toLowerCase());
+};
+
+const parseNumberEnv = (value, defaultValue) => {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : defaultValue;
+};
+
+const isGigaChatConfigured = () => Boolean(
+  process.env.GIGACHAT_CREDENTIALS ||
+  process.env.GIGACHAT_ACCESS_TOKEN ||
+  (process.env.GIGACHAT_USER && process.env.GIGACHAT_PASSWORD)
+);
+
+const setConfigValue = (config, key, value) => {
+  if (value !== undefined && value !== '') {
+    config[key] = value;
+  }
+};
+
+const createGigaChatClient = () => {
+  if (!isGigaChatConfigured()) {
+    throw new AiProviderError('GigaChat credentials are missing', 503);
+  }
+
+  const httpsAgent = new https.Agent({
+    rejectUnauthorized: parseBooleanEnv(process.env.GIGACHAT_REJECT_UNAUTHORIZED, false)
+  });
+
+  const config = {
+    httpsAgent,
+    model: process.env.GIGACHAT_MODEL || 'GigaChat',
+    scope: process.env.GIGACHAT_SCOPE || 'GIGACHAT_API_PERS',
+    timeout: parseNumberEnv(process.env.GIGACHAT_TIMEOUT, 30)
+  };
+
+  setConfigValue(config, 'credentials', process.env.GIGACHAT_CREDENTIALS);
+  setConfigValue(config, 'accessToken', process.env.GIGACHAT_ACCESS_TOKEN);
+  setConfigValue(config, 'baseUrl', process.env.GIGACHAT_BASE_URL);
+  setConfigValue(config, 'authUrl', process.env.GIGACHAT_AUTH_URL);
+  setConfigValue(config, 'user', process.env.GIGACHAT_USER);
+  setConfigValue(config, 'password', process.env.GIGACHAT_PASSWORD);
+
+  if (process.env.GIGACHAT_PROFANITY_CHECK !== undefined) {
+    config.profanityCheck = parseBooleanEnv(process.env.GIGACHAT_PROFANITY_CHECK, true);
+  }
+
+  return new GigaChat(config);
+};
+
+const getGigaChatClient = () => {
+  if (!gigachatClient) {
+    gigachatClient = createGigaChatClient();
+  }
+
+  return gigachatClient;
+};
+
+const truncate = (value, maxLength = 500) => {
+  if (!value) {
+    return '';
+  }
+
+  const stringValue = String(value).trim();
+  return stringValue.length > maxLength
+    ? `${stringValue.slice(0, maxLength - 1)}…`
+    : stringValue;
+};
+
+const getRecentMoods = (userId, limit = 30) => Mood.find({ userId })
+  .sort({ date: -1, createdAt: -1 })
+  .limit(limit);
+
+const getMoodContext = (recentMoods) => {
+  if (recentMoods.length === 0) {
+    return 'У пользователя пока нет записей настроения.';
+  }
+
+  const avgMood = recentMoods.reduce((sum, mood) => sum + mood.level, 0) / recentMoods.length;
+  const factorCounts = recentMoods
+    .flatMap((mood) => mood.factors || [])
+    .reduce((counts, factor) => {
+      counts[factor] = (counts[factor] || 0) + 1;
+      return counts;
+    }, {});
+
+  const topFactors = Object.entries(factorCounts)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 5)
+    .map(([factor, count]) => `${factor}: ${count}`)
+    .join(', ') || 'нет отмеченных факторов';
+
+  const entries = recentMoods.slice(0, 10).map((mood) => {
+    const date = mood.date ? mood.date.toISOString().slice(0, 10) : 'без даты';
+    const factors = mood.factors?.length ? mood.factors.join(', ') : 'без факторов';
+    const note = mood.note ? `, заметка: "${truncate(mood.note, 160)}"` : '';
+    return `- ${date}: уровень ${mood.level}/5, факторы: ${factors}${note}`;
+  });
+
+  return [
+    `Среднее настроение за последние ${recentMoods.length} записей: ${avgMood.toFixed(1)}/5.`,
+    `Частые факторы: ${topFactors}.`,
+    'Последние записи:',
+    ...entries
+  ].join('\n');
+};
+
+const normalizeConversationMessages = (messages = [], currentMessage) => {
+  const normalized = messages
+    .filter((message) => ['user', 'assistant'].includes(message.role) && message.content)
+    .slice(-12)
+    .map((message) => ({
+      role: message.role,
+      content: truncate(message.content, 2000)
+    }));
+
+  const lastMessage = normalized[normalized.length - 1];
+  if (!lastMessage || lastMessage.role !== 'user' || lastMessage.content !== currentMessage) {
+    normalized.push({
+      role: 'user',
+      content: truncate(currentMessage, 2000)
+    });
+  }
+
+  return normalized;
+};
+
+const callGigaChat = async (messages, options = {}) => {
   try {
-    // Get recent moods
-    const recentMoods = await Mood.find({ userId })
-      .sort({ createdAt: -1 })
-      .limit(30);
-
-    const suggestions = [];
-
-    if (recentMoods.length === 0) {
-      // Default suggestions for new users
-      return getDefaultSuggestions();
-    }
-
-    // Analyze mood patterns
-    const avgMood = recentMoods.reduce((sum, m) => sum + m.level, 0) / recentMoods.length;
-    const factors = recentMoods.flatMap(m => m.factors);
-
-    // Count factors
-    const factorCounts = {};
-    factors.forEach(f => {
-      factorCounts[f] = (factorCounts[f] || 0) + 1;
+    const response = await getGigaChatClient().chat({
+      messages,
+      temperature: options.temperature ?? 0.55,
+      max_tokens: options.maxTokens ?? 1200
     });
 
-    // Generate personalized suggestions
-    if (avgMood < 3) {
-      suggestions.push({
-        id: 'low_mood_1',
-        title: 'Техника глубокого дыхания',
-        content: 'Попробуйте дыхательную практику 4-7-8: вдох 4 секунды, задержка 7 секунд, выдох 8 секунд',
-        category: 'mindfulness',
-        icon: 'wind'
-      });
+    const content = response.choices?.[0]?.message?.content?.trim();
+    if (!content) {
+      throw new Error('GigaChat returned an empty response');
     }
 
-    if (factorCounts['no_sleep'] > factorCounts['sleep']) {
-      suggestions.push({
-        id: 'sleep_1',
-        title: 'Улучшение качества сна',
-        content: 'Создайте ритуал перед сном: отключите экраны за час до сна, прочитайте книгу или помедитируйте',
-        category: 'sleep',
-        icon: 'moon.fill'
-      });
-    }
-
-    if (!factors.includes('exercise') || factorCounts['exercise'] < 3) {
-      suggestions.push({
-        id: 'activity_1',
-        title: 'Добавьте физическую активность',
-        content: 'Даже 15 минут прогулки в день могут значительно улучшить настроение и самочувствие',
-        category: 'activity',
-        icon: 'figure.walk'
-      });
-    }
-
-    if (factorCounts['friends'] < 2 && factorCounts['family'] < 2) {
-      suggestions.push({
-        id: 'social_1',
-        title: 'Социальные связи',
-        content: 'Позвоните другу или родственнику. Общение с близкими людьми положительно влияет на настроение',
-        category: 'social',
-        icon: 'person.2.fill'
-      });
-    }
-
-    // Add general wellness suggestion
-    suggestions.push({
-      id: 'wellness_1',
-      title: 'Благодарность',
-      content: 'Запишите три вещи, за которые вы благодарны сегодня. Это простая практика улучшает эмоциональное состояние',
-      category: 'wellness',
-      icon: 'heart.fill'
-    });
-
-    return suggestions.slice(0, 5);
+    return content;
   } catch (error) {
-    console.error('Error generating suggestions:', error);
-    return getDefaultSuggestions();
-  }
-};
-
-const getDefaultSuggestions = () => [
-  {
-    id: 'default_1',
-    title: 'Начните вести дневник',
-    content: 'Записывайте свои мысли и чувства ежедневно. Это поможет лучше понять себя',
-    category: 'wellness',
-    icon: 'book.fill'
-  },
-  {
-    id: 'default_2',
-    title: 'Медитация',
-    content: 'Начните с 5 минут медитации в день. Это поможет снизить стресс и улучшить концентрацию',
-    category: 'mindfulness',
-    icon: 'brain.head.profile'
-  },
-  {
-    id: 'default_3',
-    title: 'Режим сна',
-    content: 'Старайтесь ложиться и вставать в одно время. Регулярный сон — основа хорошего самочувствия',
-    category: 'sleep',
-    icon: 'moon.fill'
-  },
-  {
-    id: 'default_4',
-    title: 'Физическая активность',
-    content: 'Найдите активность, которая вам нравится: прогулки, йога, танцы или спорт',
-    category: 'activity',
-    icon: 'figure.run'
-  },
-  {
-    id: 'default_5',
-    title: 'Общение',
-    content: 'Поддерживайте связь с близкими людьми. Социальные связи важны для эмоционального благополучия',
-    category: 'social',
-    icon: 'person.2.fill'
-  }
-];
-
-// Simple AI response generator (can be enhanced with OpenAI API)
-const generateResponse = async (message, userId) => {
-  const lowerMessage = message.toLowerCase();
-
-  // Get user's recent mood data for context
-  const recentMoods = await Mood.find({ userId })
-    .sort({ createdAt: -1 })
-    .limit(7);
-
-  let response = '';
-
-  // Pattern matching for common questions
-  if (lowerMessage.includes('настроение') && (lowerMessage.includes('улучшить') || lowerMessage.includes('поднять'))) {
-    response = `Вот несколько способов улучшить настроение прямо сейчас:
-
-1. **Дыхательная практика**: Сделайте несколько глубоких вдохов и выдохов. Это активирует парасимпатическую нервную систему и помогает расслабиться.
-
-2. **Движение**: Даже короткая прогулка или растяжка может значительно улучшить самочувствие благодаря выработке эндорфинов.
-
-3. **Музыка**: Послушайте любимую музыку — это быстрый способ поднять настроение.
-
-4. **Благодарность**: Подумайте о трёх вещах, за которые вы благодарны сегодня.
-
-5. **Общение**: Позвоните другу или напишите близкому человеку.`;
-  } else if (lowerMessage.includes('сон') || lowerMessage.includes('спать') || lowerMessage.includes('бессонница')) {
-    response = `Вот рекомендации для улучшения качества сна:
-
-1. **Режим**: Старайтесь ложиться и вставать в одно время, даже в выходные.
-
-2. **Ритуал перед сном**: За час до сна отключите яркие экраны, примите тёплый душ, почитайте книгу.
-
-3. **Обстановка**: Сделайте спальню тёмной, тихой и прохладной (18-20°C).
-
-4. **Кофеин**: Избегайте кофе и чая за 6-8 часов до сна.
-
-5. **Техника 4-7-8**: Вдох 4 секунды, задержка 7 секунд, выдох 8 секунд. Повторите 3-4 раза.
-
-6. **Записывайте мысли**: Если не можете заснуть из-за мыслей, запишите их — это поможет "выгрузить" их из головы.`;
-  } else if (lowerMessage.includes('стресс') || lowerMessage.includes('тревога') || lowerMessage.includes('нервничаю')) {
-    response = `Понимаю, справляться со стрессом непросто. Вот что может помочь:
-
-1. **Дыхание**: Техника "квадратного дыхания" — вдох 4 сек, задержка 4 сек, выдох 4 сек, задержка 4 сек.
-
-2. **Заземление**: Техника 5-4-3-2-1: найдите 5 предметов, которые видите, 4 звука, 3 текстуры, 2 запаха, 1 вкус.
-
-3. **Физическая активность**: Даже 10 минут быстрой ходьбы снижают уровень кортизола.
-
-4. **Ограничьте новости**: Постоянный поток информации усиливает тревогу.
-
-5. **Поговорите**: Расскажите о своих переживаниях близкому человеку или специалисту.
-
-Помните: испытывать стресс — это нормально. Важно находить здоровые способы с ним справляться.`;
-  } else if (lowerMessage.includes('грустно') || lowerMessage.includes('плохо') || lowerMessage.includes('депресс')) {
-    response = `Мне жаль, что вам сейчас непросто. Вот несколько мыслей:
-
-1. **Позвольте себе чувствовать**: Грусть — это нормальная эмоция. Не нужно её подавлять.
-
-2. **Маленькие шаги**: Начните с чего-то простого — встаньте с кровати, примите душ, выйдите на свежий воздух.
-
-3. **Движение**: Физическая активность реально помогает — даже небольшая прогулка.
-
-4. **Общение**: Поговорите с кем-то, кому доверяете. Иногда просто выговориться уже помогает.
-
-5. **Рутина**: Поддержание простой рутины (сон, еда, движение) помогает в сложные периоды.
-
-⚠️ Если грусть длится долго или мешает жить, пожалуйста, обратитесь к психологу или психотерапевту. Это не слабость, а забота о себе.`;
-  } else if (lowerMessage.includes('релакс') || lowerMessage.includes('расслаб')) {
-    response = `Вот техники релаксации, которые можно попробовать:
-
-**Прогрессивная мышечная релаксация:**
-Поочерёдно напрягайте и расслабляйте группы мышц, начиная с ног и заканчивая лицом. Напряжение 5 секунд, расслабление 10 секунд.
-
-**Визуализация:**
-Закройте глаза и представьте спокойное место — пляж, лес, горы. Задействуйте все органы чувств: что вы видите, слышите, чувствуете?
-
-**Дыхание животом:**
-Положите руку на живот. При вдохе живот поднимается, при выдохе — опускается. Медленно, глубоко.
-
-**Медитация осознанности:**
-Сосредоточьтесь на настоящем моменте. Наблюдайте за дыханием, звуками вокруг, ощущениями в теле без оценки.
-
-**Музыка и звуки природы:**
-Спокойная музыка или звуки природы могут помочь расслабиться.`;
-  } else {
-    // Default response
-    if (recentMoods.length > 0) {
-      const avgMood = recentMoods.reduce((sum, m) => sum + m.level, 0) / recentMoods.length;
-      const moodDescription = avgMood >= 4 ? 'хорошим' : avgMood >= 3 ? 'нормальным' : 'непростым';
-
-      response = `Спасибо за сообщение! Я вижу, что в последнее время ваше настроение было ${moodDescription}.
-
-Я могу помочь с:
-- Советами по улучшению настроения
-- Техниками релаксации и управления стрессом
-- Рекомендациями по улучшению сна
-- Практиками осознанности
-
-Просто спросите о том, что вас интересует!`;
-    } else {
-      response = `Рад познакомиться! Я ваш AI-помощник в приложении "Дневник настроения".
-
-Я могу помочь вам с:
-- **Улучшением настроения** — дам конкретные советы и техники
-- **Управлением стрессом** — расскажу о методах релаксации
-- **Качеством сна** — поделюсь рекомендациями для лучшего отдыха
-- **Эмоциональным благополучием** — помогу разобраться в чувствах
-
-Начните регулярно отмечать своё настроение, и я смогу давать более персонализированные рекомендации!
-
-Что бы вы хотели обсудить?`;
+    if (error instanceof AiProviderError) {
+      throw error;
     }
-  }
 
-  return response;
+    const status = error.response?.status;
+    const providerMessage = typeof error.response?.data === 'string'
+      ? error.response.data
+      : error.response?.data?.message;
+
+    console.error('GigaChat API error:', {
+      status,
+      message: providerMessage || error.message
+    });
+
+    throw new AiProviderError('GigaChat request failed', status === 401 ? 503 : 502, error);
+  }
 };
 
-module.exports = { getPersonalizedSuggestions, generateResponse };
+const parseSuggestionsJson = (content) => {
+  const withoutMarkdown = content
+    .replace(/^```(?:json)?/i, '')
+    .replace(/```$/i, '')
+    .trim();
+
+  const start = withoutMarkdown.indexOf('[');
+  const end = withoutMarkdown.lastIndexOf(']');
+  const jsonString = start >= 0 && end > start
+    ? withoutMarkdown.slice(start, end + 1)
+    : withoutMarkdown;
+
+  const parsed = JSON.parse(jsonString);
+  const items = Array.isArray(parsed) ? parsed : parsed.suggestions;
+
+  if (!Array.isArray(items)) {
+    throw new Error('Suggestions response is not an array');
+  }
+
+  return items
+    .slice(0, 5)
+    .filter((suggestion) => suggestion && typeof suggestion === 'object')
+    .map((suggestion, index) => {
+      const category = SUGGESTION_CATEGORIES.has(suggestion.category)
+        ? suggestion.category
+        : 'wellness';
+
+      return {
+        id: truncate(suggestion.id, 60) || `gigachat_${index + 1}`,
+        title: truncate(suggestion.title, 80) || 'Рекомендация',
+        content: truncate(suggestion.content, 260) || 'Попробуйте небольшой шаг, который поддержит ваше самочувствие сегодня.',
+        category,
+        icon: truncate(suggestion.icon, 40) || FALLBACK_ICON_BY_CATEGORY[category]
+      };
+    })
+    .filter((suggestion) => suggestion.title && suggestion.content);
+};
+
+const getPersonalizedSuggestions = async (userId) => {
+  const recentMoods = await getRecentMoods(userId);
+  const moodContext = getMoodContext(recentMoods);
+
+  try {
+    const content = await callGigaChat([
+      {
+        role: 'system',
+        content: [
+          AI_ASSISTANT_SYSTEM_PROMPT,
+          'Верни только валидный JSON без markdown.',
+          'Формат: массив из 3-5 объектов { "id": string, "title": string, "content": string, "category": string, "icon": string }.',
+          'category строго один из: wellness, sleep, activity, social, mindfulness.',
+          'icon должен быть именем SF Symbols, например heart.fill, moon.fill, figure.walk, person.2.fill, brain.head.profile, wind.'
+        ].join('\n')
+      },
+      {
+        role: 'user',
+        content: [
+          'Сформируй короткие персональные рекомендации для экрана приложения.',
+          'Каждая рекомендация должна быть конкретной, бережной и применимой сегодня.',
+          '',
+          moodContext
+        ].join('\n')
+      }
+    ], {
+      temperature: 0.35,
+      maxTokens: 1000
+    });
+
+    const suggestions = parseSuggestionsJson(content);
+    if (suggestions.length === 0) {
+      throw new Error('GigaChat returned empty suggestions');
+    }
+
+    return suggestions;
+  } catch (error) {
+    console.error('Error generating GigaChat suggestions:', error.message);
+    if (error instanceof AiProviderError) {
+      throw error;
+    }
+
+    throw new AiProviderError('GigaChat suggestions request failed', 502, error);
+  }
+};
+
+const generateResponse = async (message, userId, conversationMessages = []) => {
+  const recentMoods = await getRecentMoods(userId, 14);
+  const moodContext = getMoodContext(recentMoods);
+  const history = normalizeConversationMessages(conversationMessages, message);
+
+  return callGigaChat([
+    {
+      role: 'system',
+      content: `${AI_ASSISTANT_SYSTEM_PROMPT}\n\nКонтекст дневника пользователя:\n${moodContext}`
+    },
+    ...history
+  ], {
+    temperature: 0.6,
+    maxTokens: 1400
+  });
+};
+
+module.exports = {
+  AiProviderError,
+  getPersonalizedSuggestions,
+  generateResponse
+};

@@ -1,9 +1,8 @@
 const express = require('express');
 const { body, validationResult } = require('express-validator');
-const { v4: uuidv4 } = require('uuid');
 const { auth } = require('../middleware/auth');
 const Conversation = require('../models/Conversation');
-const { getPersonalizedSuggestions, generateResponse } = require('../services/aiService');
+const { AiProviderError, getPersonalizedSuggestions, generateResponse } = require('../services/aiService');
 
 const router = express.Router();
 
@@ -51,7 +50,7 @@ router.post('/chat',
       conversation.messages.push(userMessage);
 
       // Generate AI response
-      const responseContent = await generateResponse(message, userId);
+      const responseContent = await generateResponse(message, userId, conversation.messages);
 
       // Add assistant message
       const assistantMessage = {
@@ -77,6 +76,10 @@ router.post('/chat',
       });
     } catch (error) {
       console.error('AI chat error:', error);
+      if (error instanceof AiProviderError) {
+        return res.status(error.statusCode).json({ message: error.publicMessage });
+      }
+
       res.status(500).json({ message: 'Ошибка сервера' });
     }
   }
@@ -90,6 +93,10 @@ router.get('/suggestions', auth, async (req, res) => {
     res.json({ suggestions });
   } catch (error) {
     console.error('Get suggestions error:', error);
+    if (error instanceof AiProviderError) {
+      return res.status(error.statusCode).json({ message: error.publicMessage });
+    }
+
     res.status(500).json({ message: 'Ошибка сервера' });
   }
 });
