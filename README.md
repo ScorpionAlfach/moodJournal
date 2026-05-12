@@ -38,7 +38,7 @@ moodJournal/
 
 #### Регистрация и авторизация
 - Ввод email для регистрации
-- Подтверждение по коду из письма
+- Вход по email без кода подтверждения
 - Заполнение профиля (имя, фамилия, телефон, возраст, пол)
 - Онбординг для новых пользователей
 
@@ -75,8 +75,7 @@ moodJournal/
 ### Backend API
 
 #### Аутентификация
-- `POST /api/auth/register` — отправка email
-- `POST /api/auth/verify-code` — проверка кода
+- `POST /api/auth/register` — вход по email или старт регистрации
 - `POST /api/auth/complete-registration` — завершение регистрации
 - `POST /api/auth/login` — вход
 - `POST /api/auth/logout` — выход

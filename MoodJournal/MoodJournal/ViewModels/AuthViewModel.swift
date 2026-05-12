@@ -4,7 +4,6 @@ import SwiftUI
 @MainActor
 class AuthViewModel: ObservableObject {
     @Published var email = ""
-    @Published var verificationCode = ""
     @Published var firstName = ""
     @Published var lastName = ""
     @Published var phone = ""
@@ -15,21 +14,13 @@ class AuthViewModel: ObservableObject {
     @Published var errorMessage: String?
     @Published var authStep: AuthStep = .email
 
-    @Published var isEmailSent = false
-    @Published var isCodeVerified = false
-
     enum AuthStep {
         case email
-        case verification
         case registration
     }
 
     var isEmailValid: Bool {
         email.isValidEmail
-    }
-
-    var isCodeValid: Bool {
-        verificationCode.count == 6
     }
 
     var isRegistrationValid: Bool {
@@ -41,7 +32,7 @@ class AuthViewModel: ObservableObject {
         (Int(age) ?? 0) <= 120
     }
 
-    func sendVerificationCode() async {
+    func continueWithEmail() async {
         guard isEmailValid else {
             errorMessage = "Введите корректный email"
             return
@@ -51,35 +42,20 @@ class AuthViewModel: ObservableObject {
         errorMessage = nil
 
         do {
-            _ = try await AuthService.shared.register(email: email)
-            isEmailSent = true
-            authStep = .verification
+            let response = try await AuthService.shared.register(email: email)
+
+            if response.isNewUser {
+                authStep = .registration
+            } else if let token = response.token, let user = response.user {
+                await AppState.shared.login(token: token, user: user)
+            } else {
+                let loginResponse = try await AuthService.shared.login(email: email)
+                await AppState.shared.login(token: loginResponse.token, user: loginResponse.user)
+            }
         } catch let error as NetworkError {
             errorMessage = error.errorDescription
         } catch {
             errorMessage = "Произошла ошибка. Попробуйте позже."
-        }
-
-        isLoading = false
-    }
-
-    func verifyCode() async {
-        guard isCodeValid else {
-            errorMessage = "Введите 6-значный код"
-            return
-        }
-
-        isLoading = true
-        errorMessage = nil
-
-        do {
-            _ = try await AuthService.shared.verifyCode(email: email, code: verificationCode)
-            isCodeVerified = true
-            authStep = .registration
-        } catch let error as NetworkError {
-            errorMessage = error.errorDescription
-        } catch {
-            errorMessage = "Неверный код подтверждения"
         }
 
         isLoading = false
@@ -104,10 +80,7 @@ class AuthViewModel: ObservableObject {
         )
 
         do {
-            let response = try await AuthService.shared.completeRegistration(
-                data: registrationData,
-                code: verificationCode
-            )
+            let response = try await AuthService.shared.completeRegistration(data: registrationData)
             await AppState.shared.login(token: response.token, user: response.user)
         } catch let error as NetworkError {
             errorMessage = error.errorDescription
@@ -119,8 +92,8 @@ class AuthViewModel: ObservableObject {
     }
 
     func login() async {
-        guard isEmailValid && isCodeValid else {
-            errorMessage = "Введите email и код подтверждения"
+        guard isEmailValid else {
+            errorMessage = "Введите корректный email"
             return
         }
 
@@ -128,7 +101,7 @@ class AuthViewModel: ObservableObject {
         errorMessage = nil
 
         do {
-            let response = try await AuthService.shared.login(email: email, code: verificationCode)
+            let response = try await AuthService.shared.login(email: email)
             await AppState.shared.login(token: response.token, user: response.user)
         } catch let error as NetworkError {
             errorMessage = error.errorDescription
@@ -141,7 +114,6 @@ class AuthViewModel: ObservableObject {
 
     func reset() {
         email = ""
-        verificationCode = ""
         firstName = ""
         lastName = ""
         phone = ""
@@ -150,7 +122,5 @@ class AuthViewModel: ObservableObject {
         isLoading = false
         errorMessage = nil
         authStep = .email
-        isEmailSent = false
-        isCodeVerified = false
     }
 }

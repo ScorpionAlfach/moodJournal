@@ -12,11 +12,13 @@ actor AuthService {
     struct RegisterResponse: Codable {
         let message: String
         let email: String
+        let isNewUser: Bool
+        let token: String?
+        let user: User?
     }
 
     struct CompleteRegistrationRequest: Codable {
         let email: String
-        let code: String
         let firstName: String
         let lastName: String
         let phone: String
@@ -33,19 +35,9 @@ actor AuthService {
         )
     }
 
-    func verifyCode(email: String, code: String) async throws -> SuccessResponse {
-        let request = VerifyCodeRequest(email: email, code: code)
-        return try await NetworkManager.shared.request(
-            endpoint: "/auth/verify-code",
-            method: .post,
-            body: request
-        )
-    }
-
-    func completeRegistration(data: RegistrationData, code: String) async throws -> AuthResponse {
+    func completeRegistration(data: RegistrationData) async throws -> AuthResponse {
         let request = CompleteRegistrationRequest(
             email: data.email,
-            code: code,
             firstName: data.firstName,
             lastName: data.lastName,
             phone: data.phone,
@@ -59,8 +51,8 @@ actor AuthService {
         )
     }
 
-    func login(email: String, code: String) async throws -> AuthResponse {
-        let request = LoginRequest(email: email, code: code)
+    func login(email: String) async throws -> AuthResponse {
+        let request = LoginRequest(email: email)
         return try await NetworkManager.shared.request(
             endpoint: "/auth/login",
             method: .post,

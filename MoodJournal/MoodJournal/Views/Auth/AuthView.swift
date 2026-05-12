@@ -2,7 +2,6 @@ import SwiftUI
 
 struct AuthView: View {
     @StateObject private var viewModel = AuthViewModel()
-    @FocusState private var isCodeFieldFocused: Bool
 
     var body: some View {
         NavigationStack {
@@ -19,8 +18,6 @@ struct AuthView: View {
                             switch viewModel.authStep {
                             case .email:
                                 emailSection
-                            case .verification:
-                                verificationSection
                             case .registration:
                                 registrationSection
                             }
@@ -77,8 +74,6 @@ struct AuthView: View {
         switch viewModel.authStep {
         case .email:
             return "Введите email для регистрации или входа"
-        case .verification:
-            return "Введите код, отправленный на \(viewModel.email)"
         case .registration:
             return "Заполните информацию о себе"
         }
@@ -105,7 +100,7 @@ struct AuthView: View {
                 title: "Продолжить",
                 action: {
                     Task {
-                        await viewModel.sendVerificationCode()
+                        await viewModel.continueWithEmail()
                     }
                 },
                 isLoading: viewModel.isLoading
@@ -113,90 +108,6 @@ struct AuthView: View {
             .disabled(!viewModel.isEmailValid)
             .opacity(viewModel.isEmailValid ? 1 : 0.6)
         }
-    }
-
-    private var verificationSection: some View {
-        VStack(spacing: 20) {
-            // Code input - tap to focus
-            HStack(spacing: 12) {
-                ForEach(0..<6, id: \.self) { index in
-                    CodeDigitView(
-                        digit: getDigit(at: index),
-                        isFocused: viewModel.verificationCode.count == index
-                    )
-                }
-            }
-            .onTapGesture {
-                isCodeFieldFocused = true
-            }
-
-            // Hidden text field for input
-            TextField("", text: $viewModel.verificationCode)
-                .keyboardType(.numberPad)
-                .foregroundColor(.appText)
-                .tint(.appPrimary)
-                .focused($isCodeFieldFocused)
-                .frame(width: 1, height: 1)
-                .opacity(0.01)
-                .onChange(of: viewModel.verificationCode) { _, newValue in
-                    if newValue.count > 6 {
-                        viewModel.verificationCode = String(newValue.prefix(6))
-                    }
-                }
-                .onAppear {
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                        isCodeFieldFocused = true
-                    }
-                }
-
-            if let error = viewModel.errorMessage {
-                ErrorBanner(message: error) {
-                    viewModel.errorMessage = nil
-                }
-            }
-
-            CustomButton(
-                title: "Подтвердить",
-                action: {
-                    Task {
-                        await viewModel.verifyCode()
-                    }
-                },
-                isLoading: viewModel.isLoading
-            )
-            .disabled(!viewModel.isCodeValid)
-            .opacity(viewModel.isCodeValid ? 1 : 0.6)
-
-            Button {
-                Task {
-                    await viewModel.sendVerificationCode()
-                }
-            } label: {
-                Text("Отправить код повторно")
-                    .font(.subheadline)
-                    .foregroundColor(.appPrimary)
-            }
-
-            Button {
-                withAnimation {
-                    viewModel.authStep = .email
-                    viewModel.verificationCode = ""
-                }
-            } label: {
-                Text("Изменить email")
-                    .font(.subheadline)
-                    .foregroundColor(.appTextSecondary)
-            }
-        }
-    }
-
-    private func getDigit(at index: Int) -> String {
-        guard index < viewModel.verificationCode.count else { return "" }
-        let stringIndex = viewModel.verificationCode.index(
-            viewModel.verificationCode.startIndex,
-            offsetBy: index
-        )
-        return String(viewModel.verificationCode[stringIndex])
     }
 
     private var registrationSection: some View {
@@ -262,28 +173,17 @@ struct AuthView: View {
             )
             .disabled(!viewModel.isRegistrationValid)
             .opacity(viewModel.isRegistrationValid ? 1 : 0.6)
-        }
-    }
-}
 
-struct CodeDigitView: View {
-    let digit: String
-    let isFocused: Bool
-
-    var body: some View {
-        ZStack {
-            RoundedRectangle(cornerRadius: 12)
-                .fill(Color.appCardBackground)
-                .frame(width: 48, height: 56)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 12)
-                        .stroke(isFocused ? Color.appPrimary : Color.appBorder, lineWidth: isFocused ? 2 : 1)
-                )
-
-            Text(digit)
-                .font(.title2)
-                .fontWeight(.semibold)
-                .foregroundColor(.appText)
+            Button {
+                withAnimation {
+                    viewModel.authStep = .email
+                    viewModel.errorMessage = nil
+                }
+            } label: {
+                Text("Изменить email")
+                    .font(.subheadline)
+                    .foregroundColor(.appTextSecondary)
+            }
         }
     }
 }
