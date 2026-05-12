@@ -43,12 +43,6 @@ struct AuthResponse: Codable {
     let user: User
 }
 
-struct VerifyCodeRequest: Codable {
-    let email: String
-    let code: String
-}
-
 struct LoginRequest: Codable {
     let email: String
-    let code: String
 }

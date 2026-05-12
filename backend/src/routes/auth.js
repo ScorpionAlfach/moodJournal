@@ -2,11 +2,10 @@ const express = require('express');
 const { body, validationResult } = require('express-validator');
 const User = require('../models/User');
 const { generateToken, auth } = require('../middleware/auth');
-const { sendVerificationEmail } = require('../services/emailService');
 
 const router = express.Router();
 
-// POST /api/auth/register - Send verification code to email
+// POST /api/auth/register - Start email-only auth
 router.post('/register',
   [
     body('email').isEmail().normalizeEmail().withMessage('Введите корректный email')
@@ -19,69 +18,27 @@ router.post('/register',
       }
 
       const { email } = req.body;
+      const user = await User.findOne({ email });
 
-      // Find or create user
-      let user = await User.findOne({ email });
+      if (user?.isVerified) {
+        const token = generateToken(user._id);
 
-      if (!user) {
-        user = new User({
+        return res.json({
+          message: 'Вход выполнен успешно',
           email,
-          firstName: 'Новый',
-          lastName: 'Пользователь',
-          phone: '+70000000000',
-          age: 18
+          isNewUser: false,
+          token,
+          user: user.toJSON()
         });
       }
 
-      // Generate and save verification code
-      const code = await user.generateVerificationCode();
-      await user.save();
-
-      // Send email
-      await sendVerificationEmail(email, code);
-
       res.json({
-        message: 'Код подтверждения отправлен на email',
-        email
+        message: 'Заполните профиль для завершения регистрации',
+        email,
+        isNewUser: true
       });
     } catch (error) {
       console.error('Register error:', error);
-      res.status(500).json({ message: 'Ошибка сервера' });
-    }
-  }
-);
-
-// POST /api/auth/verify-code - Verify the code
-router.post('/verify-code',
-  [
-    body('email').isEmail().normalizeEmail(),
-    body('code').isLength({ min: 6, max: 6 }).withMessage('Код должен содержать 6 цифр')
-  ],
-  async (req, res) => {
-    try {
-      const errors = validationResult(req);
-      if (!errors.isEmpty()) {
-        return res.status(400).json({ message: errors.array()[0].msg });
-      }
-
-      const { email, code } = req.body;
-
-      const user = await User.findOne({ email });
-
-      if (!user) {
-        return res.status(404).json({ message: 'Пользователь не найден' });
-      }
-
-      if (!await user.verifyCode(code)) {
-        return res.status(400).json({ message: 'Неверный или истёкший код' });
-      }
-
-      res.json({
-        success: true,
-        message: 'Код подтверждён'
-      });
-    } catch (error) {
-      console.error('Verify code error:', error);
       res.status(500).json({ message: 'Ошибка сервера' });
     }
   }
@@ -91,7 +48,6 @@ router.post('/verify-code',
 router.post('/complete-registration',
   [
     body('email').isEmail().normalizeEmail(),
-    body('code').isLength({ min: 6, max: 6 }),
     body('firstName').trim().notEmpty().withMessage('Введите имя'),
     body('lastName').trim().notEmpty().withMessage('Введите фамилию'),
     body('phone').trim().notEmpty().withMessage('Введите телефон'),
@@ -105,27 +61,21 @@ router.post('/complete-registration',
         return res.status(400).json({ message: errors.array()[0].msg });
       }
 
-      const { email, code, firstName, lastName, phone, age, gender } = req.body;
+      const { email, firstName, lastName, phone, age, gender } = req.body;
 
-      const user = await User.findOne({ email });
+      let user = await User.findOne({ email });
 
       if (!user) {
-        return res.status(404).json({ message: 'Пользователь не найден' });
+        user = new User({ email, firstName, lastName, phone, age, gender });
+      } else {
+        user.firstName = firstName;
+        user.lastName = lastName;
+        user.phone = phone;
+        user.age = age;
+        user.gender = gender;
       }
 
-      if (!await user.verifyCode(code)) {
-        return res.status(400).json({ message: 'Неверный или истёкший код' });
-      }
-
-      // Update user data
-      user.firstName = firstName;
-      user.lastName = lastName;
-      user.phone = phone;
-      user.age = age;
-      user.gender = gender;
       user.isVerified = true;
-      user.verificationCode = null;
-      user.verificationCodeExpires = null;
 
       await user.save();
 
@@ -142,11 +92,10 @@ router.post('/complete-registration',
   }
 );
 
-// POST /api/auth/login - Login with email and code
+// POST /api/auth/login - Login with email only
 router.post('/login',
   [
-    body('email').isEmail().normalizeEmail(),
-    body('code').isLength({ min: 6, max: 6 })
+    body('email').isEmail().normalizeEmail().withMessage('Введите корректный email')
   ],
   async (req, res) => {
     try {
@@ -155,7 +104,7 @@ router.post('/login',
         return res.status(400).json({ message: errors.array()[0].msg });
       }
 
-      const { email, code } = req.body;
+      const { email } = req.body;
 
       const user = await User.findOne({ email });
 
@@ -163,14 +112,9 @@ router.post('/login',
         return res.status(404).json({ message: 'Пользователь не найден' });
       }
 
-      if (!await user.verifyCode(code)) {
-        return res.status(400).json({ message: 'Неверный или истёкший код' });
+      if (!user.isVerified) {
+        return res.status(400).json({ message: 'Завершите регистрацию' });
       }
-
-      // Clear verification code
-      user.verificationCode = null;
-      user.verificationCodeExpires = null;
-      await user.save();
 
       const token = generateToken(user._id);
 

@@ -62,14 +62,6 @@ const authLimiter = rateLimit({
   message: { message: 'Слишком много попыток, попробуйте через 15 минут' }
 });
 
-const verifyCodeLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 10,
-  standardHeaders: true,
-  legacyHeaders: false,
-  message: { message: 'Слишком много попыток ввода кода, попробуйте через 15 минут' }
-});
-
 const aiChatLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 60,
@@ -93,8 +85,7 @@ app.get('/health', (req, res) => {
 
 // API Routes
 app.use('/api/auth/register', authLimiter);
-app.use('/api/auth/verify-code', verifyCodeLimiter);
-app.use('/api/auth/login', verifyCodeLimiter);
+app.use('/api/auth/login', authLimiter);
 app.use('/api/auth', authRoutes);
 app.use('/api/ai/chat', aiChatLimiter);
 app.use('/api/onboarding', authenticatedApiLimiter, onboardingRoutes);
