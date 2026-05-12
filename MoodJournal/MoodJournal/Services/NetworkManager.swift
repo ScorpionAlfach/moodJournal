@@ -29,24 +29,12 @@ enum NetworkError: Error, LocalizedError {
 actor NetworkManager {
     static let shared = NetworkManager()
 
-    private let baseURL: String
+    private let baseURL = "https://moodjournal.ru:444/api"
     private var authToken: String?
 
     private init() {
-        let configuredURL = Bundle.main.object(forInfoDictionaryKey: "API_BASE_URL") as? String
-        let fallbackURL = "https://moodjournal.ru:444/api"
-
-        if let configuredURL,
-           !configuredURL.isEmpty,
-           !configuredURL.contains("$("),
-           configuredURL != "https://moodjournal.ru/api" {
-            self.baseURL = configuredURL
-        } else {
-            self.baseURL = fallbackURL
-        }
-
         #if DEBUG
-        print("API base URL:", self.baseURL)
+        print("API base URL:", baseURL)
         #endif
     }
 
