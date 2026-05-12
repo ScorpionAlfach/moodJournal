@@ -2,8 +2,8 @@ const nodemailer = require('nodemailer');
 
 // Create transporter
 const createTransporter = () => {
-  // For development, use ethereal email or console log
-  if (process.env.NODE_ENV === 'development' && !process.env.SMTP_USER) {
+  // Without SMTP credentials, fall back to console logs so auth flows remain testable.
+  if (!process.env.SMTP_USER || !process.env.SMTP_PASS) {
     return null;
   }
 
