@@ -20,6 +20,10 @@ const createTransporter = () => {
   });
 };
 
+const logVerificationCode = (email, code) => {
+  console.log(`\n[EMAIL FALLBACK] Код подтверждения для ${email}: ${code}\n`);
+};
+
 const sendVerificationEmail = async (email, code) => {
   const transporter = createTransporter();
 
@@ -76,11 +80,15 @@ const sendVerificationEmail = async (email, code) => {
       await transporter.sendMail(mailOptions);
     } catch (error) {
       console.error('Ошибка отправки email:', error.message);
+      if (process.env.EMAIL_FALLBACK_TO_LOGS !== 'false') {
+        logVerificationCode(email, code);
+        return;
+      }
+
       throw new Error('Не удалось отправить email');
     }
   } else {
-    // Development без SMTP — выводим код в консоль
-    console.log(`\n[DEV] Код подтверждения для ${email}: ${code}\n`);
+    logVerificationCode(email, code);
   }
 };
 
