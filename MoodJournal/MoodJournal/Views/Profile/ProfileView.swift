@@ -20,9 +20,6 @@ struct ProfileView: View {
                         editUserInfoCard
                     }
 
-                    // Actions
-                    actionsSection
-
                     // Danger zone
                     dangerSection
                 }
@@ -210,39 +207,6 @@ struct ProfileView: View {
             }
         }
         .padding(20)
-        .cardStyle()
-    }
-
-    private var actionsSection: some View {
-        VStack(spacing: 0) {
-            ProfileActionRow(
-                icon: "bell",
-                title: "Уведомления",
-                hasChevron: true
-            ) {
-                // Navigate to notifications settings
-            }
-
-            Divider().padding(.leading, 56)
-
-            ProfileActionRow(
-                icon: "lock",
-                title: "Конфиденциальность",
-                hasChevron: true
-            ) {
-                // Navigate to privacy settings
-            }
-
-            Divider().padding(.leading, 56)
-
-            ProfileActionRow(
-                icon: "questionmark.circle",
-                title: "Помощь",
-                hasChevron: true
-            ) {
-                // Navigate to help
-            }
-        }
         .cardStyle()
     }
 

@@ -37,7 +37,7 @@ struct AIAssistantView: View {
             }
         }
         .task {
-            await viewModel.loadSuggestions()
+            await viewModel.loadInitialState()
         }
     }
 

@@ -3,7 +3,7 @@
 <plist version="1.0">
 <dict>
 	<key>API_BASE_URL</key>
-	<string>https://moodjournal.ru:444/api</string>
+	<string>https://moodjournal.ru/api</string>
 	<key>NSAppTransportSecurity</key>
 	<dict/>
 	<key>UIUserInterfaceStyle</key>

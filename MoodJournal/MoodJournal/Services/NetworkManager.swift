@@ -29,7 +29,7 @@ enum NetworkError: Error, LocalizedError {
 actor NetworkManager {
     static let shared = NetworkManager()
 
-    private let baseURL = "https://moodjournal.ru:444/api"
+    private let baseURL = "https://moodjournal.ru/api"
     private var authToken: String?
 
     private init() {

@@ -18,6 +18,8 @@ struct AuthView: View {
                             switch viewModel.authStep {
                             case .email:
                                 emailSection
+                            case .code:
+                                codeSection
                             case .registration:
                                 registrationSection
                             }
@@ -74,6 +76,8 @@ struct AuthView: View {
         switch viewModel.authStep {
         case .email:
             return "Введите email для регистрации или входа"
+        case .code:
+            return "Введите код подтверждения из письма"
         case .registration:
             return "Заполните информацию о себе"
         }
@@ -107,6 +111,56 @@ struct AuthView: View {
             )
             .disabled(!viewModel.isEmailValid)
             .opacity(viewModel.isEmailValid ? 1 : 0.6)
+        }
+    }
+
+    private var codeSection: some View {
+        VStack(spacing: 20) {
+            CustomTextField(
+                placeholder: "Код подтверждения",
+                text: $viewModel.verificationCode,
+                keyboardType: .numberPad,
+                icon: "number"
+            )
+
+            if let error = viewModel.errorMessage {
+                ErrorBanner(message: error) {
+                    viewModel.errorMessage = nil
+                }
+            }
+
+            CustomButton(
+                title: "Подтвердить",
+                action: {
+                    Task {
+                        await viewModel.verifyCode()
+                    }
+                },
+                isLoading: viewModel.isLoading
+            )
+            .disabled(!viewModel.isVerificationCodeValid)
+            .opacity(viewModel.isVerificationCodeValid ? 1 : 0.6)
+
+            Button {
+                Task {
+                    await viewModel.continueWithEmail()
+                }
+            } label: {
+                Text("Отправить код повторно")
+                    .font(.subheadline)
+                    .foregroundColor(.appTextSecondary)
+            }
+
+            Button {
+                withAnimation {
+                    viewModel.authStep = .email
+                    viewModel.errorMessage = nil
+                }
+            } label: {
+                Text("Изменить email")
+                    .font(.subheadline)
+                    .foregroundColor(.appTextSecondary)
+            }
         }
     }
 

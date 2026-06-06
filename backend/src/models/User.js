@@ -10,22 +10,18 @@ const userSchema = new mongoose.Schema({
   },
   firstName: {
     type: String,
-    required: true,
     trim: true
   },
   lastName: {
     type: String,
-    required: true,
     trim: true
   },
   phone: {
     type: String,
-    required: true,
     trim: true
   },
   age: {
     type: Number,
-    required: true,
     min: 13,
     max: 120
   },
@@ -45,6 +41,14 @@ const userSchema = new mongoose.Schema({
   isVerified: {
     type: Boolean,
     default: false
+  },
+  verificationCodeHash: {
+    type: String,
+    default: null
+  },
+  verificationCodeExpiry: {
+    type: Date,
+    default: null
   }
 }, {
   timestamps: true
@@ -53,6 +57,8 @@ const userSchema = new mongoose.Schema({
 userSchema.methods.toJSON = function() {
   const obj = this.toObject();
   delete obj.__v;
+  delete obj.verificationCodeHash;
+  delete obj.verificationCodeExpiry;
   obj.id = obj._id;
   delete obj._id;
   return obj;

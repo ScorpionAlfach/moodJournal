@@ -24,4 +24,15 @@ actor AIService {
         )
         return response.suggestions
     }
+
+    func getLatestConversation() async throws -> AIConversation? {
+        struct LatestConversationResponse: Codable {
+            let conversation: AIConversation?
+        }
+        let response: LatestConversationResponse = try await NetworkManager.shared.request(
+            endpoint: "/ai/conversations/latest",
+            method: .get
+        )
+        return response.conversation
+    }
 }

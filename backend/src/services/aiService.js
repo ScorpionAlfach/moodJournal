@@ -1,14 +1,5 @@
 const https = require('https');
 const { GigaChat } = require('gigachat');
-const Mood = require('../models/Mood');
-
-const SUGGESTION_CATEGORIES = new Set([
-  'wellness',
-  'sleep',
-  'activity',
-  'social',
-  'mindfulness'
-]);
 
 const FALLBACK_ICON_BY_CATEGORY = {
   wellness: 'heart.fill',
@@ -115,44 +106,6 @@ const truncate = (value, maxLength = 500) => {
     : stringValue;
 };
 
-const getRecentMoods = (userId, limit = 30) => Mood.find({ userId })
-  .sort({ date: -1, createdAt: -1 })
-  .limit(limit);
-
-const getMoodContext = (recentMoods) => {
-  if (recentMoods.length === 0) {
-    return 'У пользователя пока нет записей настроения.';
-  }
-
-  const avgMood = recentMoods.reduce((sum, mood) => sum + mood.level, 0) / recentMoods.length;
-  const factorCounts = recentMoods
-    .flatMap((mood) => mood.factors || [])
-    .reduce((counts, factor) => {
-      counts[factor] = (counts[factor] || 0) + 1;
-      return counts;
-    }, {});
-
-  const topFactors = Object.entries(factorCounts)
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 5)
-    .map(([factor, count]) => `${factor}: ${count}`)
-    .join(', ') || 'нет отмеченных факторов';
-
-  const entries = recentMoods.slice(0, 10).map((mood) => {
-    const date = mood.date ? mood.date.toISOString().slice(0, 10) : 'без даты';
-    const factors = mood.factors?.length ? mood.factors.join(', ') : 'без факторов';
-    const note = mood.note ? `, заметка: "${truncate(mood.note, 160)}"` : '';
-    return `- ${date}: уровень ${mood.level}/5, факторы: ${factors}${note}`;
-  });
-
-  return [
-    `Среднее настроение за последние ${recentMoods.length} записей: ${avgMood.toFixed(1)}/5.`,
-    `Частые факторы: ${topFactors}.`,
-    'Последние записи:',
-    ...entries
-  ].join('\n');
-};
-
 const normalizeConversationMessages = (messages = [], currentMessage) => {
   const normalized = messages
     .filter((message) => ['user', 'assistant'].includes(message.role) && message.content)
@@ -206,99 +159,37 @@ const callGigaChat = async (messages, options = {}) => {
   }
 };
 
-const parseSuggestionsJson = (content) => {
-  const withoutMarkdown = content
-    .replace(/^```(?:json)?/i, '')
-    .replace(/```$/i, '')
-    .trim();
-
-  const start = withoutMarkdown.indexOf('[');
-  const end = withoutMarkdown.lastIndexOf(']');
-  const jsonString = start >= 0 && end > start
-    ? withoutMarkdown.slice(start, end + 1)
-    : withoutMarkdown;
-
-  const parsed = JSON.parse(jsonString);
-  const items = Array.isArray(parsed) ? parsed : parsed.suggestions;
-
-  if (!Array.isArray(items)) {
-    throw new Error('Suggestions response is not an array');
+const getPersonalizedSuggestions = async () => [
+  {
+    id: 'breathing_pause',
+    title: 'Короткая пауза',
+    content: 'Сделайте 5 спокойных вдохов и выдохов, отмечая ощущения в теле.',
+    category: 'mindfulness',
+    icon: FALLBACK_ICON_BY_CATEGORY.mindfulness
+  },
+  {
+    id: 'sleep_routine',
+    title: 'Ритуал сна',
+    content: 'За 30 минут до сна уберите экран и запишите одну мысль, которую хотите отпустить.',
+    category: 'sleep',
+    icon: FALLBACK_ICON_BY_CATEGORY.sleep
+  },
+  {
+    id: 'small_walk',
+    title: 'Небольшое движение',
+    content: 'Пройдитесь 10 минут или сделайте легкую разминку, чтобы переключить внимание.',
+    category: 'activity',
+    icon: FALLBACK_ICON_BY_CATEGORY.activity
   }
+];
 
-  return items
-    .slice(0, 5)
-    .filter((suggestion) => suggestion && typeof suggestion === 'object')
-    .map((suggestion, index) => {
-      const category = SUGGESTION_CATEGORIES.has(suggestion.category)
-        ? suggestion.category
-        : 'wellness';
-
-      return {
-        id: truncate(suggestion.id, 60) || `gigachat_${index + 1}`,
-        title: truncate(suggestion.title, 80) || 'Рекомендация',
-        content: truncate(suggestion.content, 260) || 'Попробуйте небольшой шаг, который поддержит ваше самочувствие сегодня.',
-        category,
-        icon: truncate(suggestion.icon, 40) || FALLBACK_ICON_BY_CATEGORY[category]
-      };
-    })
-    .filter((suggestion) => suggestion.title && suggestion.content);
-};
-
-const getPersonalizedSuggestions = async (userId) => {
-  const recentMoods = await getRecentMoods(userId);
-  const moodContext = getMoodContext(recentMoods);
-
-  try {
-    const content = await callGigaChat([
-      {
-        role: 'system',
-        content: [
-          AI_ASSISTANT_SYSTEM_PROMPT,
-          'Верни только валидный JSON без markdown.',
-          'Формат: массив из 3-5 объектов { "id": string, "title": string, "content": string, "category": string, "icon": string }.',
-          'category строго один из: wellness, sleep, activity, social, mindfulness.',
-          'icon должен быть именем SF Symbols, например heart.fill, moon.fill, figure.walk, person.2.fill, brain.head.profile, wind.'
-        ].join('\n')
-      },
-      {
-        role: 'user',
-        content: [
-          'Сформируй короткие персональные рекомендации для экрана приложения.',
-          'Каждая рекомендация должна быть конкретной, бережной и применимой сегодня.',
-          '',
-          moodContext
-        ].join('\n')
-      }
-    ], {
-      temperature: 0.35,
-      maxTokens: 1000
-    });
-
-    const suggestions = parseSuggestionsJson(content);
-    if (suggestions.length === 0) {
-      throw new Error('GigaChat returned empty suggestions');
-    }
-
-    return suggestions;
-  } catch (error) {
-    console.error('Error generating GigaChat suggestions:', error.message);
-    if (error instanceof AiProviderError) {
-      throw error;
-    }
-
-    throw new AiProviderError('GigaChat suggestions request failed', 502, error);
-  }
-};
-
-const generateResponse = async (message, userId, conversationMessages = []) => {
-  const recentMoods = await getRecentMoods(userId, 14);
-  const moodContext = getMoodContext(recentMoods);
+const generateResponse = async (message, conversationMessages = []) => {
   const history = normalizeConversationMessages(conversationMessages, message);
 
   return callGigaChat([
     {
       role: 'system',
-      content: `${AI_ASSISTANT_SYSTEM_PROMPT}\n\nКонтекст дневника пользователя:\n${moodContext}`
+      content: AI_ASSISTANT_SYSTEM_PROMPT
     },
     ...history
   ], {

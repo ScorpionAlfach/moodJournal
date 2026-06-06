@@ -13,6 +13,26 @@ class AIViewModel: ObservableObject {
     @Published var errorMessage: String?
     @Published var suggestionsErrorMessage: String?
     @Published var hasLoadedSuggestions = false
+    @Published var hasLoadedConversation = false
+
+    func loadInitialState() async {
+        await loadLatestConversation()
+        await loadSuggestions()
+    }
+
+    func loadLatestConversation() async {
+        guard !hasLoadedConversation else { return }
+        hasLoadedConversation = true
+
+        do {
+            if let conversation = try await AIService.shared.getLatestConversation() {
+                conversationId = conversation.id
+                messages = conversation.messages
+            }
+        } catch {
+            errorMessage = "Не удалось загрузить историю диалога"
+        }
+    }
 
     func loadSuggestions() async {
         guard !hasLoadedSuggestions, !isLoading else { return }

@@ -50,7 +50,7 @@ router.post('/chat',
       conversation.messages.push(userMessage);
 
       // Generate AI response
-      const responseContent = await generateResponse(message, userId, conversation.messages);
+      const responseContent = await generateResponse(message, conversation.messages);
 
       // Add assistant message
       const assistantMessage = {
@@ -88,7 +88,7 @@ router.post('/chat',
 // GET /api/ai/suggestions - Get personalized suggestions
 router.get('/suggestions', auth, async (req, res) => {
   try {
-    const suggestions = await getPersonalizedSuggestions(req.user._id);
+    const suggestions = await getPersonalizedSuggestions();
 
     res.json({ suggestions });
   } catch (error) {
@@ -97,6 +97,42 @@ router.get('/suggestions', auth, async (req, res) => {
       return res.status(error.statusCode).json({ message: error.publicMessage });
     }
 
+    res.status(500).json({ message: 'Ошибка сервера' });
+  }
+});
+
+// GET /api/ai/conversations/latest - Get user's latest conversation with messages
+router.get('/conversations/latest', auth, async (req, res) => {
+  try {
+    const conversation = await Conversation.findOne({ userId: req.user._id })
+      .sort({ updatedAt: -1 });
+
+    res.json({
+      conversation: conversation ? conversation.toJSON() : null
+    });
+  } catch (error) {
+    console.error('Get latest conversation error:', error);
+    res.status(500).json({ message: 'Ошибка сервера' });
+  }
+});
+
+// GET /api/ai/conversations/:id - Get one conversation with messages
+router.get('/conversations/:id', auth, async (req, res) => {
+  try {
+    const conversation = await Conversation.findOne({
+      _id: req.params.id,
+      userId: req.user._id
+    });
+
+    if (!conversation) {
+      return res.status(404).json({ message: 'Беседа не найдена' });
+    }
+
+    res.json({
+      conversation: conversation.toJSON()
+    });
+  } catch (error) {
+    console.error('Get conversation error:', error);
     res.status(500).json({ message: 'Ошибка сервера' });
   }
 });

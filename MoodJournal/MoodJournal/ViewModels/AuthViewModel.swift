@@ -4,6 +4,7 @@ import SwiftUI
 @MainActor
 class AuthViewModel: ObservableObject {
     @Published var email = ""
+    @Published var verificationCode = ""
     @Published var firstName = ""
     @Published var lastName = ""
     @Published var phone = ""
@@ -16,6 +17,7 @@ class AuthViewModel: ObservableObject {
 
     enum AuthStep {
         case email
+        case code
         case registration
     }
 
@@ -32,6 +34,10 @@ class AuthViewModel: ObservableObject {
         (Int(age) ?? 0) <= 120
     }
 
+    var isVerificationCodeValid: Bool {
+        verificationCode.count == 6 && verificationCode.allSatisfy(\.isNumber)
+    }
+
     func continueWithEmail() async {
         guard isEmailValid else {
             errorMessage = "Введите корректный email"
@@ -42,15 +48,36 @@ class AuthViewModel: ObservableObject {
         errorMessage = nil
 
         do {
-            let response = try await AuthService.shared.register(email: email)
+            _ = try await AuthService.shared.register(email: email)
+            verificationCode = ""
+            authStep = .code
+        } catch let error as NetworkError {
+            errorMessage = error.errorDescription
+        } catch {
+            errorMessage = "Произошла ошибка. Попробуйте позже."
+        }
+
+        isLoading = false
+    }
+
+    func verifyCode() async {
+        guard isVerificationCodeValid else {
+            errorMessage = "Введите 6-значный код"
+            return
+        }
+
+        isLoading = true
+        errorMessage = nil
+
+        do {
+            let response = try await AuthService.shared.verifyCode(email: email, code: verificationCode)
 
             if response.isNewUser {
                 authStep = .registration
             } else if let token = response.token, let user = response.user {
                 await AppState.shared.login(token: token, user: user)
             } else {
-                let loginResponse = try await AuthService.shared.login(email: email)
-                await AppState.shared.login(token: loginResponse.token, user: loginResponse.user)
+                errorMessage = "Не удалось выполнить вход"
             }
         } catch let error as NetworkError {
             errorMessage = error.errorDescription
@@ -72,6 +99,7 @@ class AuthViewModel: ObservableObject {
 
         let registrationData = RegistrationData(
             email: email,
+            code: verificationCode,
             firstName: firstName,
             lastName: lastName,
             phone: phone,
@@ -101,8 +129,9 @@ class AuthViewModel: ObservableObject {
         errorMessage = nil
 
         do {
-            let response = try await AuthService.shared.login(email: email)
-            await AppState.shared.login(token: response.token, user: response.user)
+            _ = try await AuthService.shared.login(email: email)
+            verificationCode = ""
+            authStep = .code
         } catch let error as NetworkError {
             errorMessage = error.errorDescription
         } catch {
@@ -114,6 +143,7 @@ class AuthViewModel: ObservableObject {
 
     func reset() {
         email = ""
+        verificationCode = ""
         firstName = ""
         lastName = ""
         phone = ""

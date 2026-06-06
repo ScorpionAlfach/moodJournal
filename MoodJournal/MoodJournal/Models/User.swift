@@ -31,6 +31,7 @@ struct User: Codable, Identifiable {
 
 struct RegistrationData: Codable {
     var email: String
+    var code: String
     var firstName: String
     var lastName: String
     var phone: String
